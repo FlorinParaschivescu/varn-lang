@@ -1,0 +1,88 @@
+{
+  "id": "score-average",
+  "title": "Mean score",
+  "prompt": "Return the mean of the supplied scores as a whole number truncated toward zero, along with how many scores there were. An empty list is an error \"no scores\".",
+  "contract": {
+    "input": "Scores(values:list[i64])",
+    "result": "result[Average(mean:i64, count:i64)]"
+  },
+  "cases": [
+    {
+      "name": "exact",
+      "input": {
+        "values": [
+          10,
+          20,
+          30
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "mean": 20,
+          "count": 3
+        }
+      }
+    },
+    {
+      "name": "truncates",
+      "input": {
+        "values": [
+          1,
+          2
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "mean": 1,
+          "count": 2
+        }
+      },
+      "trap": "3/2 is 1.5; the mean must truncate to 1"
+    },
+    {
+      "name": "single",
+      "input": {
+        "values": [
+          7
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "mean": 7,
+          "count": 1
+        }
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "values": []
+      },
+      "expect": {
+        "ok": false,
+        "error": "no scores"
+      },
+      "trap": "dividing by the count of an empty list must not crash"
+    },
+    {
+      "name": "negative-truncates-toward-zero",
+      "input": {
+        "values": [
+          -3,
+          -2
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "mean": -2,
+          "count": 2
+        }
+      },
+      "trap": "-5/2 truncates toward zero to -2; Python's // floors to -3"
+    }
+  ]
+}

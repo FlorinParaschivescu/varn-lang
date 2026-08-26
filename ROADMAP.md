@@ -16,7 +16,7 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | --- | --- | --- | --- |
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
 | S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done |
-| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | **Current** |
+| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; model-generated half open |
 | S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Not started |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
 | S6 | Multi-tenant | Isolated, signed, versioned module processes. Bytecode and a VM only if measurement demands them. Covers M4 and M5. | Not started |
@@ -25,17 +25,21 @@ M4, bytecode and the VM, is deliberately deferred. It is a performance and verif
 
 Distribution (S4) intentionally comes after expressiveness (S2) and proof (S3). Shipping an easy install before a person can write `and` converts curiosity into a bad first impression, and first impressions are spent once.
 
-## Current focus — measure the thesis
+## Current focus — measure the thesis, with a model
 
-S2 is complete: a person can write the rule they came to write, and expected failures are values. The next slice measures whether the representation earns its cost instead of assuming it does. The outcome decides whether the rest of this roadmap is aimed correctly, so it comes before distribution.
+The harness exists and the mechanism half is measured. What is missing is the half that needs a model: how *often* a real generator makes each kind of mistake, and how fast the repair loop closes.
 
-- [ ] Build a reproducible task set of small structured rules with known-correct answers.
-- [ ] Generate solutions in Varn and in Python-plus-JSON-tool-calls under identical conditions.
-- [ ] Measure **silent-wrong rate**: the run succeeds and returns a plausible but incorrect answer.
+- [x] Build a reproducible task set of small structured rules with known-correct answers.
+- [x] Classify every outcome as correct, rejected before execution, crashed, or silently wrong.
+- [x] Measure source size on one ruler across both languages.
+- [ ] Generate solutions with a real model in both languages under identical conditions.
+- [ ] Measure **silent-wrong frequency** rather than silent-wrong mechanism.
 - [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
-- [ ] Measure first-try correctness and correctness after N repairs, and publish the dataset and results.
+- [ ] Report distributions across models and temperatures, not a single run.
 
-Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, rewrite the research question around verifiability rather than token cost.
+This needs model API access, which the harness deliberately does not assume. `bench/README.md` documents exactly where generated solutions plug in; classification, grading, and token counting already work unchanged.
+
+Exit criterion: a reproducible benchmark states where Varn wins and where it loses, with frequencies rather than examples.
 
 ## Completed — `Result` values
 
@@ -73,6 +77,20 @@ Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They 
 - [ ] Publish `Varn.Runtime` and `Varn.ModuleSdk` as NuGet packages, since embedding is the real use case.
 - [ ] Reduce MCP registration to one command that does not require building this repository first.
 - [ ] Consider a browser playground: Varn is .NET, so a WebAssembly build runs the whole check/inspect/run pipeline client-side with no backend and no abuse surface, which demonstrates the sandboxing claim rather than arguing it.
+
+## Completed — benchmark harness
+
+- [x] Four structured rule tasks with cases aimed at real traps: inclusive boundaries, division by an empty count, truncation toward zero, absent optionals, exact string matching.
+- [x] Reference solutions plus a defect set in both languages, each recording the outcome it was written to have.
+- [x] Outcome classification, exact grading, size measurement, and a committed report.
+- [x] A self-check: the harness exits non-zero if any solution grades differently from its recorded intent, and runs in CI.
+
+Findings, with the caveats in `bench/README.md` attached:
+
+- On the seven defects written in both languages, Varn is strictly better on three, tied on four, worse on none. Paired silent-wrong count is **Varn 3, Python 5**.
+- The three Varn catches are shape and type errors. The four ties are pure logic errors, which no type system catches, and they are the majority. **Varn's advantage is real and bounded.**
+- Varn costs about **1.36x** the approximate tokens of Python, concentrated in `result` handling; the most failure-heavy task is 1.95x. The earlier prediction that Varn would lose badly on token cost was too pessimistic.
+- One "not expressible" row is not a win: `case-insensitive` is unexpressible only because Varn lacks `str.to_lower`, and this is stated in the report rather than counted as safety.
 
 ## Delivered slices
 

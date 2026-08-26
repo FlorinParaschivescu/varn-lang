@@ -208,6 +208,16 @@ This is the intended path for future web access: a network module can expose nar
 
 > A loaded .NET module is trusted host code and is not sandboxed by Varn. Capability checks control whether Varn programs may call it; they cannot prevent a malicious module assembly from using .NET directly. Only load modules you trust. The MCP adapter deliberately does not load external assemblies.
 
+## Benchmark
+
+```sh
+dotnet run --project bench/Varn.Bench
+```
+
+Four structured rule tasks, reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the seven defects written in both languages Varn is strictly better on three, tied on four, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. Varn costs about 1.36x the tokens.
+
+No model is called, so this measures mechanism rather than frequency. [bench/README.md](bench/README.md) states what the numbers do and do not show, and where model-generated solutions plug in.
+
 ## Repository map
 
 ```text
@@ -227,6 +237,7 @@ tests/
   Varn.Tests/             dependency-free language/runtime test runner
   Varn.Adapter.Tests/     adapter policy and MCP protocol test runner
 examples/                 programs and an external module
+bench/                    task set, solutions, and the grading harness
 spec/                     current language, tooling, adapter, and extension contracts
 ```
 

@@ -1,0 +1,170 @@
+[
+  {
+    "task": "access-check",
+    "variant": "exact-role",
+    "language": "python",
+    "note": "Compares the role for equality instead of a prefix.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "access-check",
+    "variant": "exact-role",
+    "language": "varn",
+    "note": "Compares the role for equality instead of a prefix.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "access-check",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "access-check",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "access-check",
+    "variant": "unguarded-optional",
+    "language": "python",
+    "note": "Reads a possibly absent age without checking presence.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "access-check",
+    "variant": "unguarded-optional",
+    "language": "varn",
+    "note": "Reads a possibly absent age without checking presence.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "order-discount",
+    "variant": "case-insensitive",
+    "language": "python",
+    "note": "Lowercases the tier, so \"Gold\" is accepted.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "dropped-field",
+    "language": "python",
+    "note": "Omits a declared output field.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "dropped-field",
+    "language": "varn",
+    "note": "Omits a declared output field.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "fractional-percent",
+    "language": "python",
+    "note": "Uses fractional division for a whole-unit discount.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "fractional-percent",
+    "language": "varn",
+    "note": "Uses fractional division for a whole-unit discount.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "order-discount",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "order-discount",
+    "variant": "wrong-rate",
+    "language": "python",
+    "note": "Uses the wrong percentage for one tier.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
+    "variant": "wrong-rate",
+    "language": "varn",
+    "note": "Uses the wrong percentage for one tier.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "score-average",
+    "variant": "floor-division",
+    "language": "python",
+    "note": "Floors instead of truncating toward zero on negatives.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "score-average",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "score-average",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "score-average",
+    "variant": "unguarded-division",
+    "language": "python",
+    "note": "Divides by the count without handling an empty list.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "score-average",
+    "variant": "unguarded-division",
+    "language": "varn",
+    "note": "Divides by the count without handling an empty list.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "shipping-band",
+    "variant": "off-by-one",
+    "language": "python",
+    "note": "Uses a strict comparison on an inclusive band boundary.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "shipping-band",
+    "variant": "off-by-one",
+    "language": "varn",
+    "note": "Uses a strict comparison on an inclusive band boundary.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "shipping-band",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "shipping-band",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  }
+]

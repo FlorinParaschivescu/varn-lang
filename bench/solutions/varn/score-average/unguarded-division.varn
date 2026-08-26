@@ -1,0 +1,13 @@
+budget[steps=400]
+
+rec Scores(values:list[i64])
+rec Average(mean:i64,count:i64)
+
+fn main(@0:Scores)->result[Average]
+    let @1:i64 list.length(@0.values)
+    var @2:i64 0
+    each @3:i64 in @0.values max 32
+        set @2 add(@2,@3)
+    end
+    ret ok(rec[Average](mean=div(@2,@1),count=@1))
+end

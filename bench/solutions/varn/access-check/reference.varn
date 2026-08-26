@@ -1,0 +1,16 @@
+budget[steps=200]
+
+rec Request(role:str,age:i64?,region:str)
+rec Decision(allowed:bool,reason:str)
+
+fn main(@0:Request)->Decision
+    if str.starts_with(@0.role,"admin")
+        ret rec[Decision](allowed=true,reason="admin role")
+    end
+    if let @1:i64 @0.age
+        if and(gte(@1,18),eq(@0.region,"EU"))
+            ret rec[Decision](allowed=true,reason="adult in region")
+        end
+    end
+    ret rec[Decision](allowed=false,reason="denied")
+end

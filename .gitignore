@@ -4,3 +4,17 @@ obj/
 *.user
 *.suo
 TestResults/
+
+# Python bytecode written when the benchmark harness runs solutions
+__pycache__/
+*.pyc
+
+# Packaging output (S4: dotnet tool and NuGet)
+artifacts/
+*.nupkg
+*.snupkg
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp

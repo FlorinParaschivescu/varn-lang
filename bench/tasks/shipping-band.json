@@ -1,0 +1,101 @@
+{
+  "id": "shipping-band",
+  "title": "Banded shipping cost",
+  "prompt": "Quote shipping for a parcel. Bands by weight in grams: up to and including 1000 costs 500, up to and including 5000 costs 900, anything heavier costs 1500. Express doubles the band cost. A negative weight is an error \"negative weight\". Return the cost.",
+  "contract": {
+    "input": "Parcel(grams:i64, express:bool)",
+    "result": "result[Quote(cost:i64)]"
+  },
+  "cases": [
+    {
+      "name": "light",
+      "input": {
+        "grams": 400,
+        "express": false
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 500
+        }
+      }
+    },
+    {
+      "name": "band-one-boundary",
+      "input": {
+        "grams": 1000,
+        "express": false
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 500
+        }
+      },
+      "trap": "1000 grams is inside the first band, not the second"
+    },
+    {
+      "name": "just-over-band-one",
+      "input": {
+        "grams": 1001,
+        "express": false
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 900
+        }
+      }
+    },
+    {
+      "name": "band-two-boundary",
+      "input": {
+        "grams": 5000,
+        "express": false
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 900
+        }
+      }
+    },
+    {
+      "name": "heavy-express",
+      "input": {
+        "grams": 9000,
+        "express": true
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 3000
+        }
+      }
+    },
+    {
+      "name": "zero-weight",
+      "input": {
+        "grams": 0,
+        "express": false
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "cost": 500
+        }
+      }
+    },
+    {
+      "name": "negative-weight",
+      "input": {
+        "grams": -1,
+        "express": false
+      },
+      "expect": {
+        "ok": false,
+        "error": "negative weight"
+      }
+    }
+  ]
+}

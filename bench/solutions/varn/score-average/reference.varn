@@ -1,0 +1,21 @@
+budget[steps=400]
+
+rec Scores(values:list[i64])
+rec Average(mean:i64,count:i64)
+
+fn main(@0:Scores)->result[Average]
+    let @1:i64 list.length(@0.values)
+    if eq(@1,0)
+        ret err[Average]("no scores")
+    end
+    var @2:i64 0
+    each @3:i64 in @0.values max 32
+        set @2 add(@2,@3)
+    end
+    if ok @4:i64 num.div(@2,@1)
+        ret ok(rec[Average](mean=@4,count=@1))
+    else err @5:str
+        ret err[Average](@5)
+    end
+    ret err[Average]("unreachable")
+end

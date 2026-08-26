@@ -1,0 +1,34 @@
+budget[steps=400]
+
+rec Order(items:list[i64],customerTier:str)
+rec Settlement(total:i64,discount:i64)
+
+fn rate(@0:str)->result[i64]
+    if eq(@0,"gold")
+        ret ok(10)
+    end
+    if eq(@0,"silver")
+        ret ok(5)
+    end
+    if eq(@0,"basic")
+        ret ok(0)
+    end
+    ret err[i64](str.concat("unknown tier: ",@0))
+end
+
+fn main(@0:Order)->result[Settlement]
+    var @1:i64 0
+    each @2:i64 in @0.items max 32
+        set @1 add(@1,@2)
+    end
+    if ok @3:i64 rate(@0.customerTier)
+        if ok @4:i64 num.div(mul(@1,@3),100.0)
+            ret ok(rec[Settlement](total=@1,discount=@4))
+        else err @5:str
+            ret err[Settlement](@5)
+        end
+    else err @6:str
+        ret err[Settlement](@6)
+    end
+    ret err[Settlement]("unreachable")
+end
