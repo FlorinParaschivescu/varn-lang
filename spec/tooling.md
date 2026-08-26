@@ -39,7 +39,7 @@ The process exit status remains meaningful: `0` means success, `1` means the Var
 
 - `exitCode`: the program result expressed as a process exit code.
 - `steps`: deterministic interpreter steps consumed.
-- `returnValue`: `null` or an object with `type` and `value`.
+- `returnValue`: `null` or an object with `type` and `value`. A present optional value nests another typed value object; an absent optional has a `null` value.
 - `output`: all program output captured as text.
 
 ```powershell
@@ -61,4 +61,4 @@ The exact step count and line ending in this illustration are not a compatibilit
 5. Call `run --json` only with the smallest required `--allow` grants and a suitable `--max-steps` ceiling.
 6. Treat external assemblies passed through `--module` as trusted host code.
 
-This transport is intentionally independent of Codex, MCP, or any other agent protocol. A future adapter should translate its tool request into these commands and return the parsed JSON object unchanged where practical.
+This transport remains independent of Codex, MCP, or any other agent protocol. The local MCP adapter delegates to the same engine and returns these typed response objects as structured content.

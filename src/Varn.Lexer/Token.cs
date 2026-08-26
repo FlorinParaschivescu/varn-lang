@@ -28,6 +28,8 @@ public enum TokenKind
     True,
     False,
     Null,
+    Some,
+    None,
     LeftParen,
     RightParen,
     LeftBracket,
@@ -36,7 +38,8 @@ public enum TokenKind
     Colon,
     Arrow,
     Bang,
-    Equals
+    Equals,
+    Question
 }
 
 public sealed record Token(TokenKind Kind, string Text, SourceSpan Span);

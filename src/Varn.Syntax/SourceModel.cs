@@ -19,16 +19,34 @@ public sealed record VarnType(string Name)
     public static readonly VarnType Null = new("null");
     public static readonly VarnType Any = new("any");
 
-    public static VarnType Parse(string name) => name switch
+    public bool IsOptional => Name.EndsWith("?", StringComparison.Ordinal);
+
+    public VarnType? OptionalElementType => IsOptional ? Parse(Name[..^1]) : null;
+
+    public static VarnType Optional(VarnType elementType)
     {
-        "i64" => I64,
-        "f64" => F64,
-        "bool" => Bool,
-        "str" => String,
-        "null" => Null,
-        "any" => Any,
-        _ => new VarnType(name)
-    };
+        ArgumentNullException.ThrowIfNull(elementType);
+        return new VarnType($"{elementType.Name}?");
+    }
+
+    public static VarnType Parse(string name)
+    {
+        if (name.EndsWith("?", StringComparison.Ordinal))
+        {
+            return Optional(Parse(name[..^1]));
+        }
+
+        return name switch
+        {
+            "i64" => I64,
+            "f64" => F64,
+            "bool" => Bool,
+            "str" => String,
+            "null" => Null,
+            "any" => Any,
+            _ => new VarnType(name)
+        };
+    }
 
     public override string ToString() => Name;
 }

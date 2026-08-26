@@ -171,11 +171,46 @@ public sealed class VarnTypeChecker
                         function,
                         new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal));
                     break;
+                case IfLetStatementSyntax ifLet:
+                    CheckIfLet(ifLet, function, symbols);
+                    break;
                 case LoopStatementSyntax loop:
                     CheckLoop(loop, function, symbols);
                     break;
             }
         }
+    }
+
+    private void CheckIfLet(
+        IfLetStatementSyntax ifLet,
+        FunctionSyntax function,
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
+    {
+        CheckType(ifLet.BindingType, ifLet.Span);
+        var optionalType = CheckExpression(ifLet.Optional, function, symbols);
+        if (!optionalType.IsOptional)
+        {
+            Report("VARN3026", $"An if let source must be optional, not {optionalType}.", ifLet.Optional.Span);
+        }
+        else if (optionalType.OptionalElementType != ifLet.BindingType)
+        {
+            Report(
+                "VARN3027",
+                $"An if let binding of type {ifLet.BindingType} cannot extract {optionalType.OptionalElementType} from {optionalType}.",
+                ifLet.Span);
+        }
+
+        var thenSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
+        if (!thenSymbols.TryAdd(ifLet.Binding, new SlotSymbol(ifLet.BindingType, IsMutable: false)))
+        {
+            Report("VARN3005", $"Slot '{ifLet.Binding}' is declared more than once.", ifLet.Span);
+        }
+
+        CheckStatements(ifLet.ThenBody, function, thenSymbols);
+        CheckStatements(
+            ifLet.ElseBody,
+            function,
+            new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal));
     }
 
     private void CheckLoop(
@@ -227,6 +262,15 @@ public sealed class VarnTypeChecker
         {
             case LiteralExpressionSyntax literal:
                 return literal.Type;
+            case SomeExpressionSyntax some:
+                var valueType = CheckExpression(some.Value, containingFunction, symbols);
+                var someType = VarnType.Optional(valueType);
+                CheckType(someType, some.Span);
+                return someType;
+            case NoneExpressionSyntax none:
+                var noneType = VarnType.Optional(none.ElementType);
+                CheckType(noneType, none.Span);
+                return noneType;
             case ReferenceExpressionSyntax reference:
                 if (symbols.TryGetValue(reference.Name, out var symbolType))
                 {
@@ -326,6 +370,18 @@ public sealed class VarnTypeChecker
 
     private void CheckType(VarnType type, SourceSpan span)
     {
+        if (type.IsOptional)
+        {
+            var elementType = type.OptionalElementType!;
+            if (elementType.IsOptional || elementType is null || elementType == VarnType.Null ||
+                elementType == VarnType.Any || !KnownTypes.Contains(elementType.Name))
+            {
+                Report("VARN3028", $"Optional element type '{elementType}' is not supported.", span);
+            }
+
+            return;
+        }
+
         if (!KnownTypes.Contains(type.Name))
         {
             Report("VARN3017", $"Unknown type '{type.Name}'.", span);

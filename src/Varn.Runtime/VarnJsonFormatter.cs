@@ -70,5 +70,9 @@ public static class VarnJsonFormatter
             .ToArray();
 
     private static VarnValueResponse MapValue(VarnValue value) =>
-        new(value.Type.Name, value.Value);
+        new(
+            value.Type.Name,
+            value.Type.IsOptional
+                ? value.IsSome ? MapValue(value.AsOptionalValue()) : null
+                : value.Value);
 }

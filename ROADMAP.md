@@ -2,18 +2,39 @@
 
 Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off in this file as it lands.
 
-## Current focus — typed optional values
+## Practical test gates
 
-The next vertical slice lets programs represent absence without sentinel values or implicit null conversion.
+1. [x] Real agent protocol loop: Codex generates, checks, repairs, inspects, and executes Varn through MCP.
+2. [ ] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
+3. [ ] Structured application tasks: records and `Result` enable explicit data and failure contracts.
+4. [ ] Controlled web/API tasks: structured network policy plus a trusted HTTP module.
+5. [ ] Community-hosted execution: isolated, versioned, signed module processes.
 
-- [ ] Specify one explicit optional type and construction syntax.
-- [ ] Add optional type/value nodes to the lexer, parser, AST, and module SDK contract.
-- [ ] Require explicit presence checks before extracting a contained value.
-- [ ] Implement deterministic optional construction, branching, and inspection.
-- [ ] Add exhaustive success, type-mismatch, and unsafe-access rejection tests.
-- [ ] Exercise an optional-producing workflow through the MCP adapter.
+## Current focus — typed lists
 
-Exit criterion: a checked Varn program can explicitly represent, inspect, and branch over a present or absent typed value without unchecked access.
+The next vertical slice enables the first meaningful bounded data-transformation benchmarks and builds directly on safe optional access.
+
+- [ ] Specify homogeneous list type and literal syntax.
+- [ ] Add immutable list values to the AST, checker, runtime, module SDK, and canonical format.
+- [ ] Provide deterministic length and safe indexed lookup returning an optional.
+- [ ] Add bounded traversal without implicit allocation or ambient mutation.
+- [ ] Add exhaustive size, element-type, index, and resource-accounting tests.
+- [ ] Compare an AI-generated list transformation through the MCP adapter.
+
+Exit criterion: Varn can perform and verify a bounded transformation over a homogeneous list, with out-of-range access represented explicitly as absence.
+
+## Completed — typed optional values
+
+This slice represents absence without sentinel values or implicit null conversion.
+
+- [x] Specify one explicit optional type and construction syntax.
+- [x] Add optional type/value nodes to the lexer, parser, AST, and module SDK contract.
+- [x] Require explicit presence checks before extracting a contained value.
+- [x] Implement deterministic optional construction, branching, and inspection.
+- [x] Add exhaustive success, type-mismatch, and unsafe-access rejection tests.
+- [x] Exercise an optional-producing workflow through the MCP adapter.
+
+Exit criterion met: checked Varn programs explicitly represent, inspect, and branch over present or absent typed values without unchecked access.
 
 ## Completed — explicit mutable slots
 
@@ -54,7 +75,10 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 - [x] Add `if` with a required `bool` condition.
 - [x] Add statically bounded loops with deterministic step accounting.
 - [x] Add explicit mutable slots and assignment.
-- [ ] Add optionals, lists, records, and `Result` values one at a time.
+- [x] Add typed optional values with safe extraction.
+- [ ] Add typed lists with bounded traversal.
+- [ ] Add records.
+- [ ] Add `Result` values.
 - [ ] Add exhaustive success and rejection tests for every feature.
 
 Exit criterion: Varn can express useful deterministic transformations without ambient host access.

@@ -26,7 +26,9 @@ builder.Services
             "Varn uses newline-delimited statements and end-delimited blocks, not braces. Return is ret. " +
             "Minimal shape: budget[steps=100] then fn main()->i64, statements, ret 0, end. " +
             "Use let @0:i64 0 for an immutable slot, var @0:i64 0 for a mutable slot, " +
-            "set @0 add(@0,1) to assign, and loop @1:i64 from 0 to 4 max 4 ... end for a bounded loop.";
+            "set @0 add(@0,1) to assign, and loop @1:i64 from 0 to 4 max 4 ... end for a bounded loop. " +
+            "Use i64? for an optional type, some(42) or none[i64] to construct it, and " +
+            "if let @1:i64 @0 ... else ... end to safely bind a present value.";
     })
     .WithStdioServerTransport()
     .WithTools<VarnMcpTools>();
