@@ -32,6 +32,21 @@ public sealed record ReturnStatementSyntax(
     ExpressionSyntax Value,
     SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
 
+public sealed record IfStatementSyntax(
+    ExpressionSyntax Condition,
+    IReadOnlyList<StatementSyntax> ThenBody,
+    IReadOnlyList<StatementSyntax> ElseBody,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
+public sealed record LoopStatementSyntax(
+    string Iterator,
+    VarnType IteratorType,
+    long StartInclusive,
+    long EndExclusive,
+    long MaxIterations,
+    IReadOnlyList<StatementSyntax> Body,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
 public abstract record ExpressionSyntax(SourceSpan Span);
 
 public sealed record LiteralExpressionSyntax(

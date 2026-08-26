@@ -132,18 +132,23 @@ public static class VarnParser
 
             RequireLineEnd();
             SkipNewLines();
+            var body = ParseBlock(TokenKind.End);
+            Match(TokenKind.End);
+            RequireLineEnd();
+            return new FunctionSyntax(name, parameters, returnType, effects, body, start);
+        }
 
-            var body = new List<StatementSyntax>();
-            while (Current.Kind is not TokenKind.End and not TokenKind.EndOfFile)
+        private IReadOnlyList<StatementSyntax> ParseBlock(params TokenKind[] terminators)
+        {
+            var statements = new List<StatementSyntax>();
+            while (Current.Kind != TokenKind.EndOfFile && !terminators.Contains(Current.Kind))
             {
-                body.Add(ParseStatement());
+                statements.Add(ParseStatement());
                 RequireLineEnd();
                 SkipNewLines();
             }
 
-            Match(TokenKind.End);
-            RequireLineEnd();
-            return new FunctionSyntax(name, parameters, returnType, effects, body, start);
+            return statements;
         }
 
         private StatementSyntax ParseStatement()
@@ -152,6 +157,8 @@ public static class VarnParser
             {
                 TokenKind.Let => ParseLetStatement(),
                 TokenKind.Ret => ParseReturnStatement(),
+                TokenKind.If => ParseIfStatement(),
+                TokenKind.Loop => ParseLoopStatement(),
                 _ => ParseExpressionStatement()
             };
         }
@@ -170,6 +177,64 @@ public static class VarnParser
         {
             var start = Match(TokenKind.Ret).Span;
             return new ReturnStatementSyntax(ParseExpression(), start);
+        }
+
+        private IfStatementSyntax ParseIfStatement()
+        {
+            var start = Match(TokenKind.If).Span;
+            var condition = ParseExpression();
+            RequireLineEnd();
+            SkipNewLines();
+            var thenBody = ParseBlock(TokenKind.Else, TokenKind.End);
+            IReadOnlyList<StatementSyntax> elseBody = [];
+            if (Current.Kind == TokenKind.Else)
+            {
+                MoveNext();
+                RequireLineEnd();
+                SkipNewLines();
+                elseBody = ParseBlock(TokenKind.End);
+            }
+
+            Match(TokenKind.End);
+            return new IfStatementSyntax(condition, thenBody, elseBody, start);
+        }
+
+        private LoopStatementSyntax ParseLoopStatement()
+        {
+            var start = Match(TokenKind.Loop).Span;
+            var iterator = Match(TokenKind.Slot).Text;
+            Match(TokenKind.Colon);
+            var iteratorType = ParseType();
+            Match(TokenKind.From);
+            var startInclusive = ParseI64Literal();
+            Match(TokenKind.To);
+            var endExclusive = ParseI64Literal();
+            Match(TokenKind.Max);
+            var maxIterations = ParseI64Literal();
+            RequireLineEnd();
+            SkipNewLines();
+            var body = ParseBlock(TokenKind.End);
+            Match(TokenKind.End);
+            return new LoopStatementSyntax(
+                iterator,
+                iteratorType,
+                startInclusive,
+                endExclusive,
+                maxIterations,
+                body,
+                start);
+        }
+
+        private long ParseI64Literal()
+        {
+            var token = Match(TokenKind.Integer);
+            if (long.TryParse(token.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+            {
+                return value;
+            }
+
+            Report("VARN2006", "A loop bound must be a valid i64 literal.", token.Span);
+            return 0;
         }
 
         private ExpressionStatementSyntax ParseExpressionStatement()

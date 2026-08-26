@@ -102,7 +102,21 @@ public sealed class VarnEngine
                 frame.Add(function.Parameters[index].Name, arguments[index]);
             }
 
-            foreach (var statement in function.Body)
+            var result = await ExecuteStatementsAsync(function.Body, frame, cancellationToken).ConfigureAwait(false);
+            if (result.HasReturn)
+            {
+                return result.ReturnValue;
+            }
+
+            throw new VarnExecutionException("VARN4000", $"Function '{function.Name}' completed without a return value.", function.Span);
+        }
+
+        private async ValueTask<StatementResult> ExecuteStatementsAsync(
+            IReadOnlyList<StatementSyntax> statements,
+            Dictionary<string, VarnValue> frame,
+            CancellationToken cancellationToken)
+        {
+            foreach (var statement in statements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 ConsumeStep(statement.Span);
@@ -115,11 +129,43 @@ public sealed class VarnEngine
                         _ = await EvaluateAsync(expressionStatement.Expression, frame, cancellationToken).ConfigureAwait(false);
                         break;
                     case ReturnStatementSyntax returnStatement:
-                        return await EvaluateAsync(returnStatement.Value, frame, cancellationToken).ConfigureAwait(false);
+                        return StatementResult.Return(
+                            await EvaluateAsync(returnStatement.Value, frame, cancellationToken).ConfigureAwait(false));
+                    case IfStatementSyntax conditional:
+                        var condition = await EvaluateAsync(conditional.Condition, frame, cancellationToken).ConfigureAwait(false);
+                        var selectedBody = condition.AsBool() ? conditional.ThenBody : conditional.ElseBody;
+                        var branchResult = await ExecuteStatementsAsync(
+                            selectedBody,
+                            new Dictionary<string, VarnValue>(frame, StringComparer.Ordinal),
+                            cancellationToken).ConfigureAwait(false);
+                        if (branchResult.HasReturn)
+                        {
+                            return branchResult;
+                        }
+
+                        break;
+                    case LoopStatementSyntax loop:
+                        for (var current = loop.StartInclusive; current < loop.EndExclusive; current++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            ConsumeStep(loop.Span);
+                            var iterationFrame = new Dictionary<string, VarnValue>(frame, StringComparer.Ordinal)
+                            {
+                                [loop.Iterator] = VarnValue.From(current)
+                            };
+                            var loopResult = await ExecuteStatementsAsync(loop.Body, iterationFrame, cancellationToken)
+                                .ConfigureAwait(false);
+                            if (loopResult.HasReturn)
+                            {
+                                return loopResult;
+                            }
+                        }
+
+                        break;
                 }
             }
 
-            throw new VarnExecutionException("VARN4000", $"Function '{function.Name}' completed without a return value.", function.Span);
+            return StatementResult.Continue;
         }
 
         private async ValueTask<VarnValue> EvaluateAsync(
@@ -195,6 +241,13 @@ public sealed class VarnEngine
                     $"Execution exceeded the effective step budget of {_stepLimit}.",
                     span);
             }
+        }
+
+        private readonly record struct StatementResult(bool HasReturn, VarnValue ReturnValue)
+        {
+            public static StatementResult Continue => new(false, VarnValue.Null);
+
+            public static StatementResult Return(VarnValue value) => new(true, value);
         }
     }
 }

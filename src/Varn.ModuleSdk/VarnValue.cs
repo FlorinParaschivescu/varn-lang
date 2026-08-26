@@ -19,6 +19,10 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         ? value
         : throw new InvalidOperationException($"Expected f64, got {Type}.");
 
+    public bool AsBool() => Value is bool value
+        ? value
+        : throw new InvalidOperationException($"Expected bool, got {Type}.");
+
     public string ToCanonicalString() => Type.Name switch
     {
         "null" => "null",

@@ -12,9 +12,18 @@ function      = "fn", identifier, "(", parameters?, ")", "->", type,
 parameters    = parameter, { ",", parameter } ;
 parameter     = slot, ":", type ;
 effects       = "!", "[", name-list?, "]" ;
-statement     = let | return | call ;
+
+statement     = let | return | call | conditional | loop ;
 let           = "let", slot, ":", type, expression, newline ;
 return        = "ret", expression, newline ;
+conditional   = "if", expression, newline,
+                statement*,
+                [ "else", newline, statement* ],
+                "end", newline ;
+loop          = "loop", slot, ":", type,
+                "from", integer, "to", integer, "max", integer, newline,
+                statement*, "end", newline ;
+
 expression    = literal | slot | call ;
 call          = identifier, "(", arguments?, ")" ;
 arguments     = expression, { ",", expression } ;
@@ -25,4 +34,4 @@ identifier    = letter, { letter | digit | "_" | "." } ;
 type          = identifier ;
 ```
 
-Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.
+Blocks are contextually terminated by `else` or `end`. Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Varn.ModuleSdk;
 using Varn.Syntax;
 
@@ -47,12 +48,9 @@ public sealed class VarnTypeChecker
         {
             Report("VARN3003", "A program must declare fn main()->i64.", program.Span);
         }
-        else
+        else if (main.Parameters.Count != 0 || main.ReturnType != VarnType.I64)
         {
-            if (main.Parameters.Count != 0 || main.ReturnType != VarnType.I64)
-            {
-                Report("VARN3004", "The entry point must have the signature fn main()->i64.", main.Span);
-            }
+            Report("VARN3004", "The entry point must have the signature fn main()->i64.", main.Span);
         }
 
         foreach (var function in program.Functions)
@@ -78,7 +76,19 @@ public sealed class VarnTypeChecker
             }
         }
 
-        foreach (var statement in function.Body)
+        CheckStatements(function.Body, function, symbols);
+        if (function.Body.LastOrDefault() is not ReturnStatementSyntax)
+        {
+            Report("VARN3009", $"Function '{function.Name}' must end with 'ret'.", function.Span);
+        }
+    }
+
+    private void CheckStatements(
+        IReadOnlyList<StatementSyntax> statements,
+        FunctionSyntax function,
+        Dictionary<string, VarnType> symbols)
+    {
+        foreach (var statement in statements)
         {
             switch (statement)
             {
@@ -112,13 +122,67 @@ public sealed class VarnTypeChecker
                     }
 
                     break;
+                case IfStatementSyntax conditional:
+                    var conditionType = CheckExpression(conditional.Condition, function, symbols);
+                    if (conditionType != VarnType.Bool)
+                    {
+                        Report("VARN3019", $"An if condition must be bool, not {conditionType}.", conditional.Condition.Span);
+                    }
+
+                    CheckStatements(
+                        conditional.ThenBody,
+                        function,
+                        new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal));
+                    CheckStatements(
+                        conditional.ElseBody,
+                        function,
+                        new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal));
+                    break;
+                case LoopStatementSyntax loop:
+                    CheckLoop(loop, function, symbols);
+                    break;
+            }
+        }
+    }
+
+    private void CheckLoop(
+        LoopStatementSyntax loop,
+        FunctionSyntax function,
+        IReadOnlyDictionary<string, VarnType> symbols)
+    {
+        if (loop.IteratorType != VarnType.I64)
+        {
+            Report("VARN3020", $"Loop iterator '{loop.Iterator}' must have type i64.", loop.Span);
+        }
+
+        if (loop.MaxIterations < 0)
+        {
+            Report("VARN3021", "A loop max must be nonnegative.", loop.Span);
+        }
+
+        if (loop.EndExclusive < loop.StartInclusive)
+        {
+            Report("VARN3022", "A loop end must be greater than or equal to its start.", loop.Span);
+        }
+        else
+        {
+            var requiredIterations = new BigInteger(loop.EndExclusive) - new BigInteger(loop.StartInclusive);
+            if (requiredIterations != loop.MaxIterations)
+            {
+                Report(
+                    "VARN3023",
+                    $"Loop max {loop.MaxIterations} must equal its statically known iteration count {requiredIterations}.",
+                    loop.Span);
             }
         }
 
-        if (function.Body.LastOrDefault() is not ReturnStatementSyntax)
+        var loopSymbols = new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal);
+        if (!loopSymbols.TryAdd(loop.Iterator, loop.IteratorType))
         {
-            Report("VARN3009", $"Function '{function.Name}' must end with 'ret'.", function.Span);
+            Report("VARN3005", $"Slot '{loop.Iterator}' is declared more than once.", loop.Span);
         }
+
+        CheckStatements(loop.Body, function, loopSymbols);
     }
 
     private VarnType CheckExpression(

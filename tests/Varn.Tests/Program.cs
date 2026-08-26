@@ -34,6 +34,11 @@ public static class Program
             ("checker accepts a typed program", CheckerAcceptsTypedProgram),
             ("checker requires declared effects", CheckerRequiresEffects),
             ("checker requires declared capabilities", CheckerRequiresCapabilities),
+            ("conditions execute the selected branch", ConditionsExecuteSelectedBranch),
+            ("checker requires boolean conditions", CheckerRequiresBooleanConditions),
+            ("bounded loops execute half-open ranges", BoundedLoopsExecuteHalfOpenRanges),
+            ("checker verifies the static loop maximum", CheckerVerifiesLoopMaximum),
+            ("loop iterator scope does not leak", LoopIteratorScopeDoesNotLeak),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -62,10 +67,11 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("fn main()->i64\nret 0\nend\n");
+        var result = VarnLexer.Lex("if true\nloop @0:i64 from 0 to 1 max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
-        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Arrow), "Expected an arrow token.");
-        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Integer && token.Text == "0"), "Expected the i64 literal.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.If), "Expected an if token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Loop), "Expected a loop token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Max), "Expected a max token.");
         return Task.CompletedTask;
     }
 
@@ -100,6 +106,97 @@ public static class Program
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3013");
+        return Task.CompletedTask;
+    }
+
+    private static async Task ConditionsExecuteSelectedBranch()
+    {
+        const string source = """
+            budget[steps=100]
+
+            fn choose(@0:bool)->i64
+                if @0
+                    ret 11
+                else
+                    ret 22
+                end
+                ret 33
+            end
+
+            fn main()->i64
+                ret choose(true)
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 11, "Expected the true branch to return 11.");
+    }
+
+    private static Task CheckerRequiresBooleanConditions()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                if 1
+                    ret 1
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3019");
+        return Task.CompletedTask;
+    }
+
+    private static async Task BoundedLoopsExecuteHalfOpenRanges()
+    {
+        const string source = """
+            cap[console.write]
+            budget[steps=100]
+            fn main()->i64 ![console]
+                loop @0:i64 from 0 to 3 max 3
+                    io.print(@0)
+                end
+                ret 0
+            end
+            """;
+        var output = new StringWriter();
+        var result = await CreateEngine().RunAsync(
+            source,
+            new VarnRunOptions
+            {
+                AllowedCapabilities = new HashSet<string>(StringComparer.Ordinal) { ConsoleModule.WriteCapability },
+                Output = output
+            }).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        var lines = output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert(lines.SequenceEqual(["0", "1", "2"]), $"Expected loop output 0,1,2; got '{output}'.");
+    }
+
+    private static Task CheckerVerifiesLoopMaximum()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                loop @0:i64 from 0 to 3 max 4
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3023");
+        return Task.CompletedTask;
+    }
+
+    private static Task LoopIteratorScopeDoesNotLeak()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                loop @0:i64 from 0 to 1 max 1
+                end
+                ret @0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
         return Task.CompletedTask;
     }
 
@@ -155,12 +252,23 @@ public static class Program
 
     private static Task CanonicalInspectionIsDeterministic()
     {
-        var check = CreateEngine().Check(HelloProgram);
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                if true
+                    loop @0:i64 from 0 to 1 max 1
+                    end
+                end
+                ret 0
+            end
+            """;
+        var check = CreateEngine().Check(source);
         Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
         var first = CanonicalFormatter.Format(check.Program);
         var second = CanonicalFormatter.Format(check.Program);
         Assert(first == second, "Canonical formatter changed output for the same tree.");
-        Assert(first.StartsWith("P{C[console.write];B[100];F[", StringComparison.Ordinal), "Unexpected canonical prefix.");
+        Assert(first.Contains("I(", StringComparison.Ordinal), "Canonical output omitted the condition.");
+        Assert(first.Contains("O(@0:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
         return Task.CompletedTask;
     }
 

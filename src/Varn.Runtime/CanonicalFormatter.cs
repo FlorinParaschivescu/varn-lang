@@ -48,6 +48,24 @@ public static class CanonicalFormatter
                 AppendExpression(builder, returnStatement.Value);
                 builder.Append(')');
                 break;
+            case IfStatementSyntax conditional:
+                builder.Append("I(");
+                AppendExpression(builder, conditional.Condition);
+                builder.Append("){T{");
+                AppendJoined(builder, conditional.ThenBody, AppendStatement);
+                builder.Append("};E{");
+                AppendJoined(builder, conditional.ElseBody, AppendStatement);
+                builder.Append("}}");
+                break;
+            case LoopStatementSyntax loop:
+                builder.Append("O(")
+                    .Append(loop.Iterator).Append(':').Append(loop.IteratorType.Name).Append(',')
+                    .Append(loop.StartInclusive.ToString(CultureInfo.InvariantCulture)).Append(',')
+                    .Append(loop.EndExclusive.ToString(CultureInfo.InvariantCulture)).Append(',')
+                    .Append(loop.MaxIterations.ToString(CultureInfo.InvariantCulture)).Append("){");
+                AppendJoined(builder, loop.Body, AppendStatement);
+                builder.Append('}');
+                break;
         }
     }
 

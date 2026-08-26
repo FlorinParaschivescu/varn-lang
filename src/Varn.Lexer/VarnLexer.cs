@@ -15,6 +15,12 @@ public static class VarnLexer
             ["end"] = TokenKind.End,
             ["cap"] = TokenKind.Cap,
             ["budget"] = TokenKind.Budget,
+            ["if"] = TokenKind.If,
+            ["else"] = TokenKind.Else,
+            ["loop"] = TokenKind.Loop,
+            ["from"] = TokenKind.From,
+            ["to"] = TokenKind.To,
+            ["max"] = TokenKind.Max,
             ["true"] = TokenKind.True,
             ["false"] = TokenKind.False,
             ["null"] = TokenKind.Null
