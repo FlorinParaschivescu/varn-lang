@@ -39,7 +39,7 @@ The process exit status remains meaningful: `0` means success, `1` means the Var
 
 - `exitCode`: the program result expressed as a process exit code.
 - `steps`: deterministic interpreter steps consumed.
-- `returnValue`: `null` or an object with `type` and `value`. A present optional value nests another typed value object; an absent optional has a `null` value. A list value is an array of recursively typed value objects.
+- `returnValue`: `null` or an object with `type` and `value`. A present optional value nests another typed value object; an absent optional has a `null` value. A list value is an array of recursively typed value objects. A record value is an array of `{"name","value"}` objects in declared field order, where each `value` is itself a typed value object; an array preserves field order without depending on JSON object key ordering.
 - `output`: all program output captured as text.
 
 ```powershell

@@ -69,12 +69,25 @@ public static class VarnJsonFormatter
                 new VarnSpanResponse(diagnostic.Span.Line, diagnostic.Span.Column)))
             .ToArray();
 
-    private static VarnValueResponse MapValue(VarnValue value) =>
-        new(
-            value.Type.Name,
-            value.Type.IsOptional
-                ? value.IsSome ? MapValue(value.AsOptionalValue()) : null
-                : value.Type.IsList
-                    ? value.AsList().Select(MapValue).ToArray()
-                    : value.Value);
+    private static VarnValueResponse MapValue(VarnValue value)
+    {
+        if (value.IsRecord)
+        {
+            var record = value.AsRecord();
+            return new VarnValueResponse(
+                value.Type.Name,
+                record.Shape.Fields
+                    .Select((field, index) => new VarnRecordFieldResponse(field.Name, MapValue(record.Values[index])))
+                    .ToArray());
+        }
+
+        if (value.Type.IsOptional)
+        {
+            return new VarnValueResponse(value.Type.Name, value.IsSome ? MapValue(value.AsOptionalValue()) : null);
+        }
+
+        return value.Type.IsList
+            ? new VarnValueResponse(value.Type.Name, value.AsList().Select(MapValue).ToArray())
+            : new VarnValueResponse(value.Type.Name, value.Value);
+    }
 }

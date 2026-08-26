@@ -35,9 +35,55 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         return new VarnValue(VarnType.List(elementType), Array.AsReadOnly(values));
     }
 
+    public static VarnValue FromRecord(VarnRecordShape shape, IEnumerable<VarnValue> fieldValues)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        ArgumentNullException.ThrowIfNull(fieldValues);
+        var values = fieldValues.ToArray();
+        if (values.Length != shape.Fields.Count)
+        {
+            throw new ArgumentException(
+                $"Record '{shape.Name}' declares {shape.Fields.Count} fields, got {values.Length} values.",
+                nameof(fieldValues));
+        }
+
+        for (var index = 0; index < values.Length; index++)
+        {
+            var field = shape.Fields[index];
+            if (!IsSupportedFieldType(field.Type))
+            {
+                throw new ArgumentException(
+                    $"Type '{field.Type}' cannot be a record field type.",
+                    nameof(shape));
+            }
+
+            if (values[index].Type != field.Type)
+            {
+                throw new ArgumentException(
+                    $"Field '{shape.Name}.{field.Name}' requires type '{field.Type}', got '{values[index].Type}'.",
+                    nameof(fieldValues));
+            }
+        }
+
+        return new VarnValue(shape.Type, new VarnRecordValue(shape, Array.AsReadOnly(values)));
+    }
+
+    public static bool IsSupportedFieldType(VarnType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (type.IsOptional)
+        {
+            return type.OptionalElementType!.IsScalar;
+        }
+
+        return type.IsList ? type.ListElementType!.IsScalar : type.IsScalar;
+    }
+
     public static VarnValue Null => new(VarnType.Null, null);
 
     public bool IsSome => Type.IsOptional && Value is VarnValue;
+
+    public bool IsRecord => Value is VarnRecordValue;
 
     public long AsI64() => Value is long value
         ? value
@@ -59,32 +105,35 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         ? values
         : throw new InvalidOperationException($"Expected list, got {Type}.");
 
+    public VarnRecordValue AsRecord() => Value is VarnRecordValue record
+        ? record
+        : throw new InvalidOperationException($"Expected record, got {Type}.");
+
     private static VarnType ValidateOptionalElementType(VarnType elementType)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
-            elementType != VarnType.Bool && elementType != VarnType.String)
-        {
-            throw new ArgumentException($"Type '{elementType}' cannot be an optional element type.", nameof(elementType));
-        }
-
-        return elementType;
+        return elementType.IsScalar
+            ? elementType
+            : throw new ArgumentException($"Type '{elementType}' cannot be an optional element type.", nameof(elementType));
     }
 
     private static VarnType ValidateListElementType(VarnType elementType)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
-            elementType != VarnType.Bool && elementType != VarnType.String)
-        {
-            throw new ArgumentException($"Type '{elementType}' cannot be a list element type.", nameof(elementType));
-        }
-
-        return elementType;
+        return elementType.IsScalar
+            ? elementType
+            : throw new ArgumentException($"Type '{elementType}' cannot be a list element type.", nameof(elementType));
     }
 
     public string ToCanonicalString()
     {
+        if (Value is VarnRecordValue record)
+        {
+            var fields = record.Shape.Fields
+                .Select((field, index) => $"{field.Name}={record.Values[index].ToCanonicalString()}");
+            return $"{record.Shape.Name}({string.Join(",", fields)})";
+        }
+
         if (Type.IsOptional)
         {
             return Value is VarnValue value
@@ -105,5 +154,26 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
             "i64" => ((long)Value!).ToString(CultureInfo.InvariantCulture),
             _ => Convert.ToString(Value, CultureInfo.InvariantCulture) ?? "null"
         };
+    }
+}
+
+public sealed class VarnRecordValue
+{
+    internal VarnRecordValue(VarnRecordShape shape, IReadOnlyList<VarnValue> values)
+    {
+        Shape = shape;
+        Values = values;
+    }
+
+    public VarnRecordShape Shape { get; }
+
+    public IReadOnlyList<VarnValue> Values { get; }
+
+    public VarnValue GetField(string name)
+    {
+        var index = Shape.IndexOf(name);
+        return index >= 0
+            ? Values[index]
+            : throw new InvalidOperationException($"Record '{Shape.Name}' does not declare field '{name}'.");
     }
 }

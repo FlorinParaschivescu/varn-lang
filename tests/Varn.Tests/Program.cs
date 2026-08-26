@@ -69,6 +69,20 @@ public static class Program
             ("each bindings are immutable", EachBindingIsImmutable),
             ("checker validates list operations", CheckerValidatesListOperations),
             ("list construction charges one step per element", ListConstructionChargesPerElement),
+            ("record type and value contracts are explicit", RecordTypeAndValueContractsAreExplicit),
+            ("records construct and read typed fields", RecordsConstructAndReadTypedFields),
+            ("record construction normalizes declared field order", RecordConstructionNormalizesFieldOrder),
+            ("records print with deterministic field order", RecordsPrintWithDeterministicFieldOrder),
+            ("checker reports exact record construction faults", CheckerReportsRecordConstructionFaults),
+            ("checker rejects duplicate and reserved record declarations", CheckerRejectsDuplicateAndReservedRecords),
+            ("checker rejects duplicate and unsupported record fields", CheckerRejectsDuplicateAndUnsupportedRecordFields),
+            ("checker rejects unknown record types", CheckerRejectsUnknownRecordTypes),
+            ("checker validates field access", CheckerValidatesFieldAccess),
+            ("records are immutable and have no dynamic access", RecordsAreImmutable),
+            ("records are not optional or list element types", RecordsAreNotElementTypes),
+            ("record construction charges one step per field", RecordConstructionChargesPerField),
+            ("modules can produce record values", ModulesCanProduceRecordValues),
+            ("JSON record values keep declared field order", JsonRecordValuesKeepFieldOrder),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -99,7 +113,7 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nlet @4:list[i64] list[i64](1)\nif true\nloop @1:i64 from 0 to 1 max 1\nend\neach @5:i64 in @4 max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nlet @4:list[i64] list[i64](1)\nrec Pair(a:i64)\nlet @6:Pair rec[Pair](a=1)\nlet @7:i64 @6.a\nif true\nloop @1:i64 from 0 to 1 max 1\nend\neach @5:i64 in @4 max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
@@ -112,6 +126,8 @@ public static class Program
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.List), "Expected a list token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Each), "Expected an each token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.In), "Expected an in token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Rec), "Expected a rec token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Dot), "Expected a field access token.");
         return Task.CompletedTask;
     }
 
@@ -799,6 +815,333 @@ public static class Program
         Assert(populatedResult.Steps - emptyResult.Steps == 3, "Expected one deterministic construction step per element.");
     }
 
+    private static Task RecordTypeAndValueContractsAreExplicit()
+    {
+        var shape = new VarnRecordShape(
+            "Order",
+            [new VarnRecordField("items", VarnType.List(VarnType.I64)), new VarnRecordField("tier", VarnType.String)]);
+        Assert(shape.Type == VarnType.Parse("Order"), "Expected a named record type.");
+        Assert(shape.IndexOf("items") == 0 && shape.IndexOf("tier") == 1, "Expected declared field order.");
+        Assert(shape.IndexOf("absent") == -1, "Expected an undeclared field to be absent.");
+
+        var value = VarnValue.FromRecord(
+            shape,
+            [VarnValue.FromList(VarnType.I64, [VarnValue.From(1L)]), VarnValue.From("gold")]);
+        Assert(value.Type == shape.Type, "Expected the record type.");
+        Assert(value.IsRecord, "Expected a record value.");
+        Assert(value.AsRecord().GetField("tier").Value as string == "gold", "Expected lookup by field name.");
+        Assert(
+            value.ToCanonicalString() == "Order(items=list[i64](1),tier=gold)",
+            $"Expected canonical SDK record text, got '{value.ToCanonicalString()}'.");
+
+        AssertRecordShapeRejects([new VarnRecordField("a", VarnType.I64), new VarnRecordField("a", VarnType.Bool)]);
+        AssertRecordFactoryRejects(shape, [VarnValue.From("gold")]);
+        AssertRecordFactoryRejects(shape, [VarnValue.From("gold"), VarnValue.From("gold")]);
+        AssertRecordFactoryRejects(new VarnRecordShape("Bad", [new VarnRecordField("a", VarnType.Null)]), [VarnValue.Null]);
+        return Task.CompletedTask;
+    }
+
+    private static async Task RecordsConstructAndReadTypedFields()
+    {
+        var result = await CreateEngine().RunAsync(OrderProgram).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 235, "Expected a 10 percent discount on a 2350 total.");
+    }
+
+    private static async Task RecordConstructionNormalizesFieldOrder()
+    {
+        const string declared = """
+            budget[steps=100]
+            rec Pair(a:i64,b:i64)
+            fn main()->i64
+                let @0:Pair rec[Pair](a=1,b=2)
+                ret sub(@0.a,@0.b)
+            end
+            """;
+        const string reordered = """
+            budget[steps=100]
+            rec Pair(a:i64,b:i64)
+            fn main()->i64
+                let @0:Pair rec[Pair](b=2,a=1)
+                ret sub(@0.a,@0.b)
+            end
+            """;
+        var declaredCheck = CreateEngine().Check(declared);
+        var reorderedCheck = CreateEngine().Check(reordered);
+        Assert(declaredCheck.IsValid && reorderedCheck.IsValid, FormatDiagnostics(reorderedCheck.Diagnostics));
+        var canonical = CanonicalFormatter.Format(declaredCheck.Program);
+        Assert(
+            canonical == CanonicalFormatter.Format(reorderedCheck.Program),
+            "Expected source field order to normalize to declared field order.");
+        Assert(
+            canonical.Contains("T[Pair(a:i64;b:i64)]", StringComparison.Ordinal),
+            "Canonical output omitted the record declaration.");
+        Assert(
+            canonical.Contains("W[Pair](a=K[i64:1];b=K[i64:2])", StringComparison.Ordinal),
+            "Canonical output omitted normalized record construction.");
+        Assert(
+            canonical.Contains("G[a](V[@0])", StringComparison.Ordinal),
+            "Canonical output omitted field access.");
+
+        var declaredResult = await CreateEngine().RunAsync(declared).ConfigureAwait(false);
+        var reorderedResult = await CreateEngine().RunAsync(reordered).ConfigureAwait(false);
+        Assert(declaredResult.ReturnValue?.AsI64() == -1, "Expected a-b to be -1.");
+        Assert(
+            declaredResult.ReturnValue?.AsI64() == reorderedResult.ReturnValue?.AsI64() &&
+            declaredResult.Steps == reorderedResult.Steps,
+            "Expected identical results and step accounting regardless of source field order.");
+    }
+
+    private static async Task RecordsPrintWithDeterministicFieldOrder()
+    {
+        const string source = """
+            cap[console.write]
+            budget[steps=100]
+            rec Pair(a:i64,b:str)
+            fn main()->i64 ![console]
+                io.print(rec[Pair](b="x",a=1))
+                ret 0
+            end
+            """;
+        var output = new StringWriter();
+        var result = await CreateEngine().RunAsync(
+            source,
+            new VarnRunOptions
+            {
+                AllowedCapabilities = new HashSet<string>(StringComparer.Ordinal) { ConsoleModule.WriteCapability },
+                Output = output
+            }).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(output.ToString().Trim() == "Pair(a=1,b=x)", $"Expected declared field order, got '{output}'.");
+    }
+
+    private static Task CheckerReportsRecordConstructionFaults()
+    {
+        const string source = """
+            budget[steps=40]
+            rec Order(items:list[i64],tier:str)
+            fn main()->i64
+                let @0:Order rec[Order](items=list[i64](1),tier="g",extra=1)
+                let @1:Order rec[Order](items=list[i64](1))
+                let @2:Order rec[Order](items=list[i64](1),tier="g",tier="h")
+                let @3:Order rec[Order](items=1,tier="g")
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3039");
+        AssertHasDiagnostic(diagnostics, "VARN3040");
+        AssertHasDiagnostic(diagnostics, "VARN3041");
+        AssertHasDiagnostic(diagnostics, "VARN3042");
+        Assert(
+            diagnostics.Single(static diagnostic => diagnostic.Code == "VARN3039").Message
+                .Contains("tier", StringComparison.Ordinal),
+            "Expected the missing field to be named.");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsDuplicateAndReservedRecords()
+    {
+        const string source = """
+            budget[steps=20]
+            rec i64(a:i64)
+            rec Pair(a:i64)
+            rec Pair(b:i64)
+            fn main()->i64
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        Assert(
+            diagnostics.Count(static diagnostic => diagnostic.Code == "VARN3036") == 2,
+            FormatDiagnostics(diagnostics));
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsDuplicateAndUnsupportedRecordFields()
+    {
+        const string source = """
+            budget[steps=20]
+            rec Duplicated(a:i64,a:str)
+            rec Unsupported(a:null,b:any,c:list[list[i64]],d:i64??,e:Duplicated)
+            fn main()->i64
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3037");
+        Assert(
+            diagnostics.Count(static diagnostic => diagnostic.Code == "VARN3038") == 5,
+            FormatDiagnostics(diagnostics));
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsUnknownRecordTypes()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:Missing rec[Missing](a=1)
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        Assert(
+            diagnostics.Count(static diagnostic => diagnostic.Code == "VARN3017") == 2,
+            FormatDiagnostics(diagnostics));
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerValidatesFieldAccess()
+    {
+        const string source = """
+            budget[steps=40]
+            rec Order(items:list[i64],tier:str)
+            fn main()->i64
+                let @0:i64 1
+                let @1:str @0.tier
+                let @2:Order rec[Order](items=list[i64](1),tier="g")
+                let @3:str @2.absent
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3043");
+        AssertHasDiagnostic(diagnostics, "VARN3044");
+        return Task.CompletedTask;
+    }
+
+    private static Task RecordsAreImmutable()
+    {
+        const string fieldAssignment = """
+            budget[steps=40]
+            rec Pair(a:i64,b:i64)
+            fn main()->i64
+                let @0:Pair rec[Pair](a=1,b=2)
+                set @0.a 3
+                ret 0
+            end
+            """;
+        const string slotAssignment = """
+            budget[steps=40]
+            rec Pair(a:i64,b:i64)
+            fn main()->i64
+                let @0:Pair rec[Pair](a=1,b=2)
+                set @0 rec[Pair](a=3,b=4)
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(fieldAssignment).Diagnostics, "VARN2004");
+        AssertHasDiagnostic(CreateEngine().Check(slotAssignment).Diagnostics, "VARN3024");
+        return Task.CompletedTask;
+    }
+
+    private static Task RecordsAreNotElementTypes()
+    {
+        const string source = """
+            budget[steps=20]
+            rec Pair(a:i64)
+            fn main()->i64
+                let @0:Pair? none[Pair]
+                let @1:list[Pair] list[Pair]()
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3028");
+        AssertHasDiagnostic(diagnostics, "VARN3029");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RecordConstructionChargesPerField()
+    {
+        const string one = """
+            budget[steps=100]
+            rec One(a:i64)
+            fn main()->i64
+                let @0:One rec[One](a=1)
+                ret @0.a
+            end
+            """;
+        const string two = """
+            budget[steps=100]
+            rec Two(a:i64,b:i64)
+            fn main()->i64
+                let @0:Two rec[Two](a=1,b=2)
+                ret @0.a
+            end
+            """;
+        var oneResult = await CreateEngine().RunAsync(one).ConfigureAwait(false);
+        var twoResult = await CreateEngine().RunAsync(two).ConfigureAwait(false);
+        Assert(oneResult.IsSuccess && twoResult.IsSuccess, FormatDiagnostics(twoResult.Diagnostics));
+        Assert(twoResult.Steps - oneResult.Steps == 1, "Expected one deterministic construction step per field.");
+    }
+
+    private static async Task ModulesCanProduceRecordValues()
+    {
+        const string source = """
+            budget[steps=40]
+            rec Point(x:i64,y:i64)
+            fn main()->i64
+                let @0:Point test.point(40)
+                ret add(@0.x,@0.y)
+            end
+            """;
+        var engine = CreateEngine();
+        engine.AddModule(new TestModule());
+        var result = await engine.RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 42, "Expected the module-produced record fields to sum to 42.");
+    }
+
+    private static Task JsonRecordValuesKeepFieldOrder()
+    {
+        var shape = new VarnRecordShape(
+            "Settlement",
+            [new VarnRecordField("total", VarnType.I64), new VarnRecordField("discount", VarnType.I64)]);
+        var value = VarnValue.FromRecord(shape, [VarnValue.From(2350L), VarnValue.From(235L)]);
+        var json = VarnJsonFormatter.FormatRun(new VarnRunResult(value, [], 1), string.Empty);
+        using var document = JsonDocument.Parse(json);
+        var returnValue = document.RootElement.GetProperty("returnValue");
+        Assert(returnValue.GetProperty("type").GetString() == "Settlement", "Expected the record type name.");
+        var fields = returnValue.GetProperty("value").EnumerateArray().ToArray();
+        Assert(fields.Length == 2, "Expected two record fields.");
+        Assert(fields[0].GetProperty("name").GetString() == "total", "Expected the declared first field.");
+        Assert(fields[0].GetProperty("value").GetProperty("value").GetInt64() == 2350, "Expected the total value.");
+        Assert(fields[1].GetProperty("name").GetString() == "discount", "Expected the declared second field.");
+        Assert(fields[1].GetProperty("value").GetProperty("type").GetString() == "i64", "Expected a typed field value.");
+        return Task.CompletedTask;
+    }
+
+    private const string OrderProgram = """
+        budget[steps=300]
+        rec Order(items:list[i64],tier:str)
+        rec Settlement(total:i64,discount:i64)
+        fn total(@0:list[i64])->i64
+            var @1:i64 0
+            each @2:i64 in @0 max 8
+                set @1 add(@1,@2)
+            end
+            ret @1
+        end
+        fn discount(@0:i64,@1:str)->i64
+            if eq(@1,"gold")
+                ret div(@0,10)
+            end
+            ret 0
+        end
+        fn settle(@0:Order)->Settlement
+            let @1:i64 total(@0.items)
+            let @2:i64 discount(@1,@0.tier)
+            ret rec[Settlement](total=@1,discount=@2)
+        end
+        fn main()->i64
+            let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+            let @1:Settlement settle(@0)
+            ret @1.discount
+        end
+        """;
+
     private static async Task RuntimeExecutesMilestone()
     {
         var output = new StringWriter();
@@ -880,6 +1223,7 @@ public static class Program
         Assert(first.Contains("L(@2:i64?,P(K[i64:1]))", StringComparison.Ordinal), "Canonical output omitted the present optional.");
         Assert(first.Contains("L(@3:i64?,N[i64])", StringComparison.Ordinal), "Canonical output omitted the absent optional.");
         Assert(first.Contains("J(@4:i64,V[@2])", StringComparison.Ordinal), "Canonical output omitted the if-let binding.");
+        Assert(first.Contains(";T[];F[", StringComparison.Ordinal), "Canonical output omitted the empty record section.");
         return Task.CompletedTask;
     }
 
@@ -942,6 +1286,30 @@ public static class Program
         }
     }
 
+    private static void AssertRecordShapeRejects(IReadOnlyList<VarnRecordField> fields)
+    {
+        try
+        {
+            _ = new VarnRecordShape("Invalid", fields);
+            throw new InvalidOperationException("Expected the record shape to be rejected.");
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
+    private static void AssertRecordFactoryRejects(VarnRecordShape shape, IEnumerable<VarnValue> values)
+    {
+        try
+        {
+            _ = VarnValue.FromRecord(shape, values);
+            throw new InvalidOperationException($"Expected the record factory to reject values for {shape}.");
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
     private static void AssertOptionalFactoryRejects(VarnType elementType)
     {
         try
@@ -970,10 +1338,18 @@ public static class Program
 
     private sealed class TestModule : IVarnModule
     {
+        private static readonly VarnRecordShape PointShape = new(
+            "Point",
+            [new VarnRecordField("x", VarnType.I64), new VarnRecordField("y", VarnType.I64)]);
+
         public string Name => "varn.tests";
 
         public void Register(VarnModuleBuilder builder)
         {
+            builder.Function(
+                new VarnFunctionSignature("test.point", [VarnType.I64], PointShape.Type),
+                static (_, arguments, _) => ValueTask.FromResult(
+                    VarnValue.FromRecord(PointShape, [arguments[0], VarnValue.From(2L)])));
             builder.Function(
                 new VarnFunctionSignature("test.double", [VarnType.I64], VarnType.I64),
                 static (_, arguments, _) => ValueTask.FromResult(VarnValue.From(checked(arguments[0].AsI64() * 2))));

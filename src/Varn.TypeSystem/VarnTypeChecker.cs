@@ -9,10 +9,15 @@ public sealed class VarnTypeChecker
     private static readonly HashSet<string> KnownTypes =
         ["i64", "f64", "bool", "str", "null"];
 
+    private static readonly HashSet<string> ReservedTypeNames =
+        [.. KnownTypes, "any"];
+
     private readonly VarnModuleRegistry _modules;
     private readonly List<Diagnostic> _diagnostics = [];
     private IReadOnlyDictionary<string, FunctionSyntax> _functions =
         new Dictionary<string, FunctionSyntax>();
+    private IReadOnlyDictionary<string, VarnRecordShape> _records =
+        new Dictionary<string, VarnRecordShape>();
     private ProgramSyntax _program = null!;
 
     public VarnTypeChecker(VarnModuleRegistry modules)
@@ -35,6 +40,7 @@ public sealed class VarnTypeChecker
         }
 
         ReportDuplicates(program.Capabilities, "capability", program.Span);
+        _records = CollectRecords(program);
 
         var functionGroups = program.Functions.GroupBy(static function => function.Name, StringComparer.Ordinal);
         foreach (var group in functionGroups.Where(static group => group.Count() > 1))
@@ -59,6 +65,56 @@ public sealed class VarnTypeChecker
         }
 
         return new TypeCheckResult(_diagnostics.ToArray());
+    }
+
+    private IReadOnlyDictionary<string, VarnRecordShape> CollectRecords(ProgramSyntax program)
+    {
+        var records = new Dictionary<string, VarnRecordShape>(StringComparer.Ordinal);
+        foreach (var declaration in program.Records)
+        {
+            var fields = new List<VarnRecordField>();
+            var declared = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var field in declaration.Fields)
+            {
+                if (!declared.Add(field.Name))
+                {
+                    Report(
+                        "VARN3037",
+                        $"Record '{declaration.Name}' declares field '{field.Name}' more than once.",
+                        field.Span);
+                    continue;
+                }
+
+                if (!VarnValue.IsSupportedFieldType(field.Type))
+                {
+                    Report(
+                        "VARN3038",
+                        $"Record field type '{field.Type}' is not supported.",
+                        field.Span);
+                }
+
+                fields.Add(new VarnRecordField(field.Name, field.Type));
+            }
+
+            if (ReservedTypeNames.Contains(declaration.Name))
+            {
+                Report(
+                    "VARN3036",
+                    $"Record '{declaration.Name}' shadows a built-in type name.",
+                    declaration.Span);
+                continue;
+            }
+
+            if (!records.TryAdd(declaration.Name, new VarnRecordShape(declaration.Name, fields)))
+            {
+                Report(
+                    "VARN3036",
+                    $"Record '{declaration.Name}' is declared more than once.",
+                    declaration.Span);
+            }
+        }
+
+        return records;
     }
 
     private void CheckFunction(FunctionSyntax function)
@@ -333,6 +389,27 @@ public sealed class VarnTypeChecker
                 }
 
                 return VarnType.List(list.ElementType);
+            case RecordExpressionSyntax record:
+                return CheckRecord(record, containingFunction, symbols);
+            case FieldExpressionSyntax field:
+                var targetType = CheckExpression(field.Target, containingFunction, symbols);
+                if (!_records.TryGetValue(targetType.Name, out var targetShape))
+                {
+                    Report("VARN3043", $"Field access requires a record value, not {targetType}.", field.Span);
+                    return VarnType.Null;
+                }
+
+                var fieldIndex = targetShape.IndexOf(field.FieldName);
+                if (fieldIndex < 0)
+                {
+                    Report(
+                        "VARN3044",
+                        $"Record '{targetShape.Name}' does not declare field '{field.FieldName}'.",
+                        field.Span);
+                    return VarnType.Null;
+                }
+
+                return targetShape.Fields[fieldIndex].Type;
             case ReferenceExpressionSyntax reference:
                 if (symbols.TryGetValue(reference.Name, out var symbolType))
                 {
@@ -346,6 +423,68 @@ public sealed class VarnTypeChecker
             default:
                 throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.");
         }
+    }
+
+    private VarnType CheckRecord(
+        RecordExpressionSyntax record,
+        FunctionSyntax containingFunction,
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
+    {
+        if (!_records.TryGetValue(record.TypeName, out var shape))
+        {
+            foreach (var initializer in record.Fields)
+            {
+                _ = CheckExpression(initializer.Value, containingFunction, symbols);
+            }
+
+            Report("VARN3017", $"Unknown type '{record.TypeName}'.", record.Span);
+            return VarnType.Null;
+        }
+
+        var assigned = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var initializer in record.Fields)
+        {
+            var valueType = CheckExpression(initializer.Value, containingFunction, symbols);
+            var index = shape.IndexOf(initializer.Name);
+            if (index < 0)
+            {
+                Report(
+                    "VARN3040",
+                    $"Record '{shape.Name}' does not declare field '{initializer.Name}'.",
+                    initializer.Span);
+                continue;
+            }
+
+            if (!assigned.Add(initializer.Name))
+            {
+                Report(
+                    "VARN3041",
+                    $"Record '{shape.Name}' field '{initializer.Name}' is set more than once.",
+                    initializer.Span);
+            }
+
+            if (!IsAssignable(shape.Fields[index].Type, valueType))
+            {
+                Report(
+                    "VARN3042",
+                    $"Field '{shape.Name}.{initializer.Name}' requires {shape.Fields[index].Type}, got {valueType}.",
+                    initializer.Value.Span);
+            }
+        }
+
+        var missing = shape.Fields
+            .Where(field => !assigned.Contains(field.Name))
+            .Select(static field => field.Name)
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            Report(
+                "VARN3039",
+                $"Record '{shape.Name}' construction is missing field(s) {string.Join(", ", missing)}.",
+                record.Span);
+        }
+
+        return shape.Type;
     }
 
     private VarnType CheckCall(
@@ -489,7 +628,7 @@ public sealed class VarnTypeChecker
             return;
         }
 
-        if (!KnownTypes.Contains(type.Name))
+        if (!KnownTypes.Contains(type.Name) && !_records.ContainsKey(type.Name))
         {
             Report("VARN3017", $"Unknown type '{type.Name}'.", span);
         }

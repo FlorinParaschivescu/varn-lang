@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 45 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 59 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -64,6 +64,22 @@ dotnet run --project src/Varn.Cli -- run examples/hello.varn --allow console.wri
 Expected output: `30`.
 
 The program must declare `console.write`; the host must independently grant it with `--allow console.write`. Declaring a capability never grants it.
+
+## Structured values
+
+```varn
+budget[steps=300]
+
+rec Order(items:list[i64],tier:str)
+rec Settlement(total:i64,discount:i64)
+
+fn settle(@0:Order)->Settlement
+    let @1:i64 total(@0.items)
+    ret rec[Settlement](total=@1,discount=discount(@1,@0.tier))
+end
+```
+
+A `rec` declaration is closed and immutable. Construction must set every declared field exactly once, missing, extra, duplicate, and mistyped fields each get their own diagnostic, and `@0.items` is the only way to read a field. Declaration order is the only field order the runtime, canonical projection, and JSON results use. See [examples/typed-records.varn](examples/typed-records.varn).
 
 ## CLI
 
@@ -113,8 +129,8 @@ The adapter has been exercised through real Codex check–repair–inspect–run
 
 ## Practical test readiness
 
-- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, and small bounded typed-list transformations.
-- After records and `Result`: practical structured workflows with explicit data and failure contracts.
+- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, small bounded typed-list transformations, and closed structured records.
+- After typed host inputs and `Result`: one checked program reused across many host-supplied inputs, with explicit failure contracts.
 - After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
 - After process isolation: community execution of modules that are not already trusted host code.
 
@@ -158,9 +174,9 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
-Intentionally deferred: records, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: `Result`, structured host inputs, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 

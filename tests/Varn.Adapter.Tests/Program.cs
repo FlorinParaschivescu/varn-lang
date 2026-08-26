@@ -25,7 +25,7 @@ public static class Program
             ("adapter denies an ungranted program capability", RunDeniesMissingCapability),
             ("adapter captures successful execution", RunCapturesSuccessfulExecution),
             ("adapter enforces output ceilings", RunEnforcesOutputCeiling),
-            ("MCP stdio host supports optional and list check-inspect-run", McpHostSupportsCheckRepairRun)
+            ("MCP stdio host supports optional, list, and record check-inspect-run", McpHostSupportsCheckRepairRun)
         };
 
         var failures = 0;
@@ -140,6 +140,12 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("each @1:i64 in @0 max 3", StringComparison.Ordinal) is true,
             "Expected compact bounded list traversal guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("rec Order(items:list[i64],tier:str)", StringComparison.Ordinal) is true,
+            "Expected compact record declaration guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("read a field with @0.items", StringComparison.Ordinal) is true,
+            "Expected compact record field access guidance.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
@@ -273,6 +279,89 @@ public static class Program
         Assert(listRun.GetProperty("success").GetBoolean(), "Expected MCP run to accept the repaired list source.");
         Assert(listRun.GetProperty("returnValue").GetProperty("value").GetInt64() == 10,
             "Expected MCP bounded list fold value 10.");
+
+        const string invalidRecordSource = """
+            budget[steps=300]
+            rec Order(items:list[i64],tier:str)
+            fn main()->i64
+                let @0:Order rec[Order](items=list[i64](1200,850,300))
+                ret list.length(@0.lines)
+            end
+            """;
+        var invalidRecordResult = await client.CallToolAsync(
+            "varn_check",
+            new Dictionary<string, object?> { ["source"] = invalidRecordSource }).ConfigureAwait(false);
+        var invalidRecord = StructuredRoot(invalidRecordResult.StructuredContent);
+        var recordDiagnostics = invalidRecord.GetProperty("diagnostics").EnumerateArray()
+            .Select(static diagnostic => diagnostic.GetProperty("code").GetString())
+            .ToArray();
+        Assert(
+            recordDiagnostics.Contains("VARN3039"),
+            "Expected MCP to report the missing record field.");
+        Assert(
+            recordDiagnostics.Contains("VARN3044"),
+            "Expected MCP to report the undeclared record field.");
+
+        const string recordSource = """
+            budget[steps=300]
+            rec Order(items:list[i64],tier:str)
+            rec Settlement(total:i64,discount:i64)
+            fn total(@0:list[i64])->i64
+                var @1:i64 0
+                each @2:i64 in @0 max 8
+                    set @1 add(@1,@2)
+                end
+                ret @1
+            end
+            fn settle(@0:Order)->Settlement
+                let @1:i64 total(@0.items)
+                if eq(@0.tier,"gold")
+                    ret rec[Settlement](total=@1,discount=div(@1,10))
+                end
+                ret rec[Settlement](discount=0,total=@1)
+            end
+            fn main()->i64
+                let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+                ret settle(@0).discount
+            end
+            """;
+        var recordCheckResult = await client.CallToolAsync(
+            "varn_check",
+            new Dictionary<string, object?> { ["source"] = recordSource }).ConfigureAwait(false);
+        var recordCheck = StructuredRoot(recordCheckResult.StructuredContent);
+        Assert(recordCheck.GetProperty("success").GetBoolean(), "Expected MCP check to accept the repaired record source.");
+
+        var recordInspectResult = await client.CallToolAsync(
+            "varn_inspect",
+            new Dictionary<string, object?> { ["source"] = recordSource }).ConfigureAwait(false);
+        var recordCanonical = StructuredRoot(recordInspectResult.StructuredContent)
+            .GetProperty("canonical").GetString();
+        Assert(
+            recordCanonical?.Contains("T[Order(items:list[i64];tier:str);Settlement(total:i64;discount:i64)]", StringComparison.Ordinal) is true,
+            "Expected MCP canonical inspection to include ordered record declarations.");
+        Assert(
+            recordCanonical?.Contains("W[Settlement](total=K[i64:0]", StringComparison.Ordinal) is false,
+            "Expected canonical record construction to normalize to declared field order.");
+        Assert(
+            recordCanonical?.Contains("W[Settlement](total=V[@1];discount=K[i64:0])", StringComparison.Ordinal) is true,
+            "Expected canonical record construction in declared field order.");
+        Assert(
+            recordCanonical?.Contains("G[discount](A[settle(V[@0])])", StringComparison.Ordinal) is true,
+            "Expected canonical field access on a call result.");
+
+        var recordRunResult = await client.CallToolAsync(
+            "varn_run",
+            new Dictionary<string, object?>
+            {
+                ["source"] = recordSource,
+                ["allowedCapabilities"] = Array.Empty<string>(),
+                ["maxSteps"] = 300L,
+                ["maxOutputCharacters"] = 100
+            }).ConfigureAwait(false);
+        var recordRun = StructuredRoot(recordRunResult.StructuredContent);
+        Assert(recordRun.GetProperty("success").GetBoolean(), "Expected MCP run to accept the repaired record source.");
+        Assert(recordRun.GetProperty("returnValue").GetProperty("value").GetInt64() == 235,
+            "Expected MCP structured order calculation to return a 235 discount.");
     }
 
     private static string FindToolHostExecutable()

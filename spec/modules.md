@@ -59,6 +59,23 @@ builder.Function(
 
 Module signatures use `VarnType.List(elementType)`. Trusted handlers construct immutable values with `VarnValue.FromList(elementType, values)` and read them through `AsList()`. The factory requires exact homogeneous scalar values and enforces the 1,024-element runtime limit. Modules should not invoke the public value constructor to bypass these invariants.
 
+## Record values
+
+Module signatures name a record type with `shape.Type`, where the shape declares the same name and field order as the Varn `rec` declaration the program uses:
+
+```csharp
+private static readonly VarnRecordShape PointShape = new(
+    "Point",
+    [new VarnRecordField("x", VarnType.I64), new VarnRecordField("y", VarnType.I64)]);
+
+builder.Function(
+    new VarnFunctionSignature("geo.origin", [VarnType.I64], PointShape.Type),
+    static (_, arguments, _) => ValueTask.FromResult(
+        VarnValue.FromRecord(PointShape, [arguments[0], VarnValue.From(0L)])));
+```
+
+`VarnValue.FromRecord` requires one value per declared field, in declared order, with exact types, and rejects unsupported field types. `AsRecord()` returns the value's shape and values, and `GetField(name)` reads one field. A shape rejects duplicate or empty field names at construction.
+
 ## Security boundary
 
 An `IVarnModule` assembly executes as trusted .NET host code. Varn gates calls into it, but cannot stop malicious initialization or handler code from using ambient .NET APIs. Do not load untrusted assemblies.

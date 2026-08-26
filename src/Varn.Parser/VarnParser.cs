@@ -29,6 +29,7 @@ public static class VarnParser
         {
             var capabilities = new List<string>();
             long? stepBudget = null;
+            var records = new List<RecordSyntax>();
             var functions = new List<FunctionSyntax>();
             SkipNewLines();
 
@@ -48,11 +49,14 @@ public static class VarnParser
 
                         stepBudget = parsedBudget;
                         break;
+                    case TokenKind.Rec:
+                        records.Add(ParseRecord());
+                        break;
                     case TokenKind.Fn:
                         functions.Add(ParseFunction());
                         break;
                     default:
-                        Report("VARN2000", $"Expected 'cap', 'budget', or 'fn', but found '{Current.Text}'.", Current.Span);
+                        Report("VARN2000", $"Expected 'cap', 'budget', 'rec', or 'fn', but found '{Current.Text}'.", Current.Span);
                         MoveNext();
                         break;
                 }
@@ -61,7 +65,7 @@ public static class VarnParser
             }
 
             return new ParseResult(
-                new ProgramSyntax(capabilities, stepBudget, functions, new SourceSpan(1, 1)),
+                new ProgramSyntax(capabilities, stepBudget, records, functions, new SourceSpan(1, 1)),
                 _diagnostics);
         }
 
@@ -92,6 +96,35 @@ public static class VarnParser
             return long.TryParse(value.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : ReportAndReturnNull("VARN2003", "The step budget must be a valid i64 value.", start);
+        }
+
+        private RecordSyntax ParseRecord()
+        {
+            var start = Match(TokenKind.Rec).Span;
+            var name = MatchSimpleName("record");
+            Match(TokenKind.LeftParen);
+            var fields = new List<RecordFieldSyntax>();
+            if (Current.Kind != TokenKind.RightParen)
+            {
+                do
+                {
+                    var fieldName = MatchSimpleName("field");
+                    Match(TokenKind.Colon);
+                    var type = ParseType();
+                    fields.Add(new RecordFieldSyntax(fieldName.Text, type, fieldName.Span));
+                    if (Current.Kind != TokenKind.Comma)
+                    {
+                        break;
+                    }
+
+                    MoveNext();
+                }
+                while (Current.Kind != TokenKind.EndOfFile);
+            }
+
+            Match(TokenKind.RightParen);
+            RequireLineEnd();
+            return new RecordSyntax(name.Text, fields, start);
         }
 
         private FunctionSyntax ParseFunction()
@@ -311,6 +344,19 @@ public static class VarnParser
 
         private ExpressionSyntax ParseExpression()
         {
+            var expression = ParsePrimaryExpression();
+            while (Current.Kind == TokenKind.Dot)
+            {
+                MoveNext();
+                var field = MatchSimpleName("field");
+                expression = new FieldExpressionSyntax(expression, field.Text, field.Span);
+            }
+
+            return expression;
+        }
+
+        private ExpressionSyntax ParsePrimaryExpression()
+        {
             var token = Current;
             switch (token.Kind)
             {
@@ -338,6 +384,8 @@ public static class VarnParser
                     return ParseNoneExpression();
                 case TokenKind.List:
                     return ParseListExpression();
+                case TokenKind.Rec:
+                    return ParseRecordExpression();
                 case TokenKind.Slot:
                     MoveNext();
                     return new ReferenceExpressionSyntax(token.Text, token.Span);
@@ -393,6 +441,35 @@ public static class VarnParser
 
             Match(TokenKind.RightParen);
             return new ListExpressionSyntax(elementType, elements, start);
+        }
+
+        private RecordExpressionSyntax ParseRecordExpression()
+        {
+            var start = Match(TokenKind.Rec).Span;
+            Match(TokenKind.LeftBracket);
+            var typeName = MatchSimpleName("record");
+            Match(TokenKind.RightBracket);
+            Match(TokenKind.LeftParen);
+            var fields = new List<RecordInitializerSyntax>();
+            if (Current.Kind != TokenKind.RightParen)
+            {
+                do
+                {
+                    var fieldName = MatchSimpleName("field");
+                    Match(TokenKind.Equals);
+                    fields.Add(new RecordInitializerSyntax(fieldName.Text, ParseExpression(), fieldName.Span));
+                    if (Current.Kind != TokenKind.Comma)
+                    {
+                        break;
+                    }
+
+                    MoveNext();
+                }
+                while (Current.Kind != TokenKind.EndOfFile);
+            }
+
+            Match(TokenKind.RightParen);
+            return new RecordExpressionSyntax(typeName.Text, fields, start);
         }
 
         private CallExpressionSyntax ParseCall()
@@ -506,6 +583,17 @@ public static class VarnParser
 
             Report("VARN2099", $"Expected {expected}, but found {Current.Kind} ('{Current.Text}').", Current.Span);
             return new Token(expected, string.Empty, Current.Span);
+        }
+
+        private Token MatchSimpleName(string kind)
+        {
+            var token = Match(TokenKind.Identifier);
+            if (token.Text.Contains('.', StringComparison.Ordinal))
+            {
+                Report("VARN2007", $"A {kind} name must not contain '.'.", token.Span);
+            }
+
+            return token;
         }
 
         private long? ReportAndReturnNull(string code, string message, SourceSpan span)

@@ -30,7 +30,8 @@ public static class VarnLexer
             ["null"] = TokenKind.Null,
             ["some"] = TokenKind.Some,
             ["none"] = TokenKind.None,
-            ["list"] = TokenKind.List
+            ["list"] = TokenKind.List,
+            ["rec"] = TokenKind.Rec
         };
 
     public static LexResult Lex(string source)
@@ -214,6 +215,7 @@ public static class VarnLexer
                 '!' => TokenKind.Bang,
                 '=' => TokenKind.Equals,
                 '?' => TokenKind.Question,
+                '.' => TokenKind.Dot,
                 _ => (TokenKind?)null
             };
 

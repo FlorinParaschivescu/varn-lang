@@ -72,6 +72,7 @@ public sealed class VarnEngine
         private readonly VarnModuleRegistry _modules;
         private readonly VarnRunOptions _options;
         private readonly IReadOnlyDictionary<string, FunctionSyntax> _functions;
+        private readonly IReadOnlyDictionary<string, VarnRecordShape> _records;
         private readonly long _stepLimit;
         private SourceSpan _currentSpan;
 
@@ -80,6 +81,12 @@ public sealed class VarnEngine
             _modules = modules;
             _options = options;
             _functions = program.Functions.ToDictionary(static function => function.Name, StringComparer.Ordinal);
+            _records = program.Records.ToDictionary(
+                static record => record.Name,
+                static record => new VarnRecordShape(
+                    record.Name,
+                    [.. record.Fields.Select(static field => new VarnRecordField(field.Name, field.Type))]),
+                StringComparer.Ordinal);
             _stepLimit = Math.Min(program.StepBudget!.Value, options.MaxSteps);
             _currentSpan = program.Span;
         }
@@ -237,6 +244,8 @@ public sealed class VarnEngine
                     await EvaluateAsync(some.Value, frame, cancellationToken).ConfigureAwait(false)),
                 NoneExpressionSyntax none => VarnValue.None(none.ElementType),
                 ListExpressionSyntax list => await EvaluateListAsync(list, frame, cancellationToken).ConfigureAwait(false),
+                RecordExpressionSyntax record => await EvaluateRecordAsync(record, frame, cancellationToken).ConfigureAwait(false),
+                FieldExpressionSyntax field => await EvaluateFieldAsync(field, frame, cancellationToken).ConfigureAwait(false),
                 ReferenceExpressionSyntax reference => frame[reference.Name].Value,
                 CallExpressionSyntax call => await InvokeCallAsync(call, frame, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.")
@@ -256,6 +265,34 @@ public sealed class VarnEngine
             }
 
             return VarnValue.FromList(list.ElementType, values);
+        }
+
+        private async ValueTask<VarnValue> EvaluateRecordAsync(
+            RecordExpressionSyntax record,
+            IReadOnlyDictionary<string, SlotCell> frame,
+            CancellationToken cancellationToken)
+        {
+            var shape = _records[record.TypeName];
+            var values = new VarnValue[shape.Fields.Count];
+            for (var index = 0; index < shape.Fields.Count; index++)
+            {
+                var initializer = record.Fields.Single(field =>
+                    string.Equals(field.Name, shape.Fields[index].Name, StringComparison.Ordinal));
+                ConsumeStep(initializer.Value.Span);
+                values[index] = await EvaluateAsync(initializer.Value, frame, cancellationToken).ConfigureAwait(false);
+            }
+
+            return VarnValue.FromRecord(shape, values);
+        }
+
+        private async ValueTask<VarnValue> EvaluateFieldAsync(
+            FieldExpressionSyntax field,
+            IReadOnlyDictionary<string, SlotCell> frame,
+            CancellationToken cancellationToken)
+        {
+            ConsumeStep(field.Span);
+            var target = await EvaluateAsync(field.Target, frame, cancellationToken).ConfigureAwait(false);
+            return target.AsRecord().GetField(field.FieldName);
         }
 
         private async ValueTask<VarnValue> InvokeCallAsync(

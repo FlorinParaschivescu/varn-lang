@@ -19,6 +19,9 @@ public sealed record VarnType(string Name)
     public static readonly VarnType Null = new("null");
     public static readonly VarnType Any = new("any");
 
+    public bool IsScalar =>
+        this == I64 || this == F64 || this == Bool || this == String;
+
     public bool IsOptional => Name.EndsWith("?", StringComparison.Ordinal);
 
     public bool IsList => Name.StartsWith("list[", StringComparison.Ordinal) && Name.EndsWith(']');

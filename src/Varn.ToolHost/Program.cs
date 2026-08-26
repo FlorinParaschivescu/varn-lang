@@ -30,7 +30,10 @@ builder.Services
             "Use i64? for an optional type, some(42) or none[i64] to construct it, and " +
             "if let @1:i64 @0 ... else ... end to safely bind a present value. " +
             "Use list[i64](1,2,3) for a homogeneous list, list.length(@0) for its length, " +
-            "list.get(@0,1) for an i64?, and each @1:i64 in @0 max 3 ... end for bounded traversal.";
+            "list.get(@0,1) for an i64?, and each @1:i64 in @0 max 3 ... end for bounded traversal. " +
+            "Declare a closed record at program level with rec Order(items:list[i64],tier:str), construct it as " +
+            "rec[Order](items=list[i64](1,2),tier=\"gold\") with every declared field set exactly once, and " +
+            "read a field with @0.items. Records are immutable and have no dynamic property access.";
     })
     .WithStdioServerTransport()
     .WithTools<VarnMcpTools>();

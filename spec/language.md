@@ -4,7 +4,7 @@ This document describes the implemented bootstrap subset, not the full language 
 
 ## Program contract
 
-A program contains zero or more capability declarations, exactly one positive step budget, and one or more functions. It must define `fn main()->i64` with no parameters.
+A program contains zero or more capability declarations, exactly one positive step budget, zero or more record declarations, and one or more functions. It must define `fn main()->i64` with no parameters.
 
 ```varn
 cap[console.write]
@@ -81,6 +81,42 @@ end
 
 The source must be a list (`VARN3032`), the binding must match its element type (`VARN3033`), and `max` must be between 0 and 1,024 (`VARN3034`). The runtime rejects a list longer than the stated maximum with `VARN4006`; it never truncates traversal. Construction charges one step per element, and traversal charges every iteration boundary and body operation.
 
+## Typed records
+
+A record declaration is a program-level directive. It names a closed structure and lists its fields in one line:
+
+```varn
+rec Order(items:list[i64],tier:str)
+```
+
+Record names are ordinal and unique across the program. They must not shadow a built-in type name (`VARN3036`). Field names must be unique inside their record (`VARN3037`). A field type must be a scalar, an optional scalar, or a list of scalars (`VARN3038`); nested records are intentionally unsupported in this slice. Declaration order defines the record's field order, and that order is the only field order the runtime, the canonical projection, and JSON results ever use.
+
+Construction names the record and sets every declared field exactly once:
+
+```varn
+let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+```
+
+The checker reports each fault exactly:
+
+- `VARN3039` when a declared field is not set, naming the missing fields in declaration order;
+- `VARN3040` when a field the record does not declare is set;
+- `VARN3041` when a field is set more than once;
+- `VARN3042` when a field value does not exactly match its declared type.
+
+Field initializers may appear in any source order. The checker, interpreter, and canonical formatter all normalize them to declaration order, so two sources that differ only in field order produce the same canonical projection, the same result, and the same step count.
+
+A field is read with a postfix `.name` on a record-valued expression:
+
+```varn
+let @1:list[i64] @0.items
+let @2:i64 settle(@0).discount
+```
+
+Field access is static. The target must be a record (`VARN3043`) and the field must be declared (`VARN3044`); there is no dynamic property lookup, no field enumeration, and no reflection over a record. Records are immutable: there is no field assignment form, and a whole-record `set` still requires a mutable slot.
+
+Construction charges one step per field and field access charges one step, so the cost of a structured value is visible in the step budget.
+
 ## Conditions
 
 An `if` condition must have type `bool`. Branch-local slots do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.
@@ -117,5 +153,7 @@ There is no implicit descending loop, unbounded loop, or `break` in v0.1. The ru
 An effectful function declares its effects after the return type: `fn main()->i64 ![console]`. Calling an effectful program or module function requires the caller to declare the same effect, including calls nested in conditions or loops.
 
 `budget[steps=N]` sets the program's maximum instruction budget. The host supplies its own maximum. Execution uses the lower value and fails deterministically when it is exceeded.
+
+Record declarations appear in the canonical projection as `T[...]`, sorted ordinally by name with their declared field order preserved.
 
 `varn inspect` emits a deterministic compact structural projection. It is useful for tests and experiments but is not yet the final serialized canonical format.

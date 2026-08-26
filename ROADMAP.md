@@ -6,21 +6,35 @@ Varn should advance through small, measurable vertical slices. Each milestone in
 
 1. [x] Real agent protocol loop: Codex generates, checks, repairs, inspects, and executes Varn through MCP.
 2. [x] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
-3. [ ] Structured application tasks: records and `Result` enable explicit data and failure contracts.
+3. [ ] Structured application tasks: records land; host inputs and `Result` complete the data and failure contracts.
 4. [ ] Controlled web/API tasks: structured network policy plus a trusted HTTP module.
 5. [ ] Community-hosted execution: isolated, versioned, signed module processes.
 
-## Current focus — typed records
+## Current focus — typed host inputs
 
-The next vertical slice makes structured application inputs and outputs explicit without introducing ambient object behavior.
+The next vertical slice separates the data from the program, so one checked Varn program can be reused across many host-supplied inputs.
 
-- [ ] Specify closed named-record type, construction, and field-access syntax.
-- [ ] Add immutable record values to the AST, checker, runtime, module SDK, JSON, and canonical format.
-- [ ] Require unique, ordinally ordered field names and exact field types.
-- [ ] Add exhaustive missing, duplicate, extra, access, and resource-accounting tests.
-- [ ] Exercise an AI-generated structured application task through the MCP adapter.
+- [ ] Specify a declared program input contract and a structured entry-point result.
+- [ ] Accept host-supplied structured data as a checked value rather than generated source.
+- [ ] Validate every host input against the declared contract before execution begins.
+- [ ] Teach `varn_check` and `varn_run` the input contract, with exact rejection diagnostics.
+- [ ] Add tests that run one unchanged program over several different inputs.
 
-Exit criterion: Varn can validate and transform a closed structured value with deterministic field order and no dynamic property access.
+Exit criterion: an isolated agent generates and repairs one Varn program, then executes it against several structured host inputs and receives deterministic structured results, with no filesystem, network, or other capability.
+
+## Completed — typed records
+
+This slice makes structured application data explicit without introducing ambient object behavior.
+
+- [x] Specify closed named-record type, construction, and field-access syntax.
+- [x] Add immutable record values to the AST, checker, runtime, module SDK, JSON, and canonical format.
+- [x] Require unique, ordinally ordered field names and exact field types.
+- [x] Add exhaustive missing, duplicate, extra, access, and resource-accounting tests.
+- [x] Exercise an AI-generated structured application task through the MCP adapter.
+
+Exit criterion met: Varn validates and transforms a closed structured value with deterministic field order and no dynamic property access. `rec Order(items:list[i64],tier:str)` declares the shape, `rec[Order](...)` must set every declared field exactly once, `@0.items` is the only field read, and `VARN3036`–`VARN3044` name each structural fault precisely.
+
+Protocol evidence: driven through the real stdio MCP process by `Varn.Adapter.Tests`, a record order-calculation program was rejected with `VARN3039` and `VARN3044`, repaired, inspected as `T[Order(items:list[i64];tier:str);Settlement(total:i64;discount:i64)]`, and executed to a deterministic `235` discount on a `2350` total with no capabilities granted. Source field order does not change the canonical projection, the result, or the step count. An autonomous Codex generate-check-repair-run session over records is still worth running before the next slice.
 
 ## Completed — typed lists
 
@@ -91,7 +105,8 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 - [x] Add explicit mutable slots and assignment.
 - [x] Add typed optional values with safe extraction.
 - [x] Add typed lists with bounded traversal.
-- [ ] Add records.
+- [x] Add records.
+- [ ] Add typed host inputs.
 - [ ] Add `Result` values.
 - [ ] Add exhaustive success and rejection tests for every feature.
 

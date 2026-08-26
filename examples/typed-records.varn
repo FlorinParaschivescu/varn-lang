@@ -1,0 +1,32 @@
+# Closed structured input and output without ambient object access.
+budget[steps=300]
+
+rec Order(items:list[i64],tier:str)
+rec Settlement(total:i64,discount:i64)
+
+fn total(@0:list[i64])->i64
+    var @1:i64 0
+    each @2:i64 in @0 max 8
+        set @1 add(@1,@2)
+    end
+    ret @1
+end
+
+fn discount(@0:i64,@1:str)->i64
+    if eq(@1,"gold")
+        ret div(@0,10)
+    end
+    ret 0
+end
+
+fn settle(@0:Order)->Settlement
+    let @1:i64 total(@0.items)
+    let @2:i64 discount(@1,@0.tier)
+    ret rec[Settlement](total=@1,discount=@2)
+end
+
+fn main()->i64
+    let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+    let @1:Settlement settle(@0)
+    ret @1.discount
+end

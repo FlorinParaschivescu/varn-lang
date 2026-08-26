@@ -15,6 +15,10 @@ public sealed record VarnValueResponse(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("value")] object? Value);
 
+public sealed record VarnRecordFieldResponse(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("value")] VarnValueResponse Value);
+
 public sealed record VarnCheckResponse(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
     [property: JsonPropertyName("command")] string Command,

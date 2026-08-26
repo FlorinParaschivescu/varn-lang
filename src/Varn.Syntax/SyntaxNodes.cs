@@ -3,8 +3,16 @@ namespace Varn.Syntax;
 public sealed record ProgramSyntax(
     IReadOnlyList<string> Capabilities,
     long? StepBudget,
+    IReadOnlyList<RecordSyntax> Records,
     IReadOnlyList<FunctionSyntax> Functions,
     SourceSpan Span);
+
+public sealed record RecordSyntax(
+    string Name,
+    IReadOnlyList<RecordFieldSyntax> Fields,
+    SourceSpan Span);
+
+public sealed record RecordFieldSyntax(string Name, VarnType Type, SourceSpan Span);
 
 public sealed record FunctionSyntax(
     string Name,
@@ -92,6 +100,21 @@ public sealed record NoneExpressionSyntax(
 public sealed record ListExpressionSyntax(
     VarnType ElementType,
     IReadOnlyList<ExpressionSyntax> Elements,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
+public sealed record RecordExpressionSyntax(
+    string TypeName,
+    IReadOnlyList<RecordInitializerSyntax> Fields,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
+public sealed record RecordInitializerSyntax(
+    string Name,
+    ExpressionSyntax Value,
+    SourceSpan Span);
+
+public sealed record FieldExpressionSyntax(
+    ExpressionSyntax Target,
+    string FieldName,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
 public sealed record ReferenceExpressionSyntax(

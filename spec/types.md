@@ -16,6 +16,10 @@ Appending `?` creates an optional over `i64`, `f64`, `bool`, or `str`. `some(val
 
 `list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none[T]`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
 
-Mutable declarations, assignments, arguments, and returns require exact types. There are no implicit conversions. Records and `Result` are planned but not specified yet.
+A `rec` declaration introduces a closed named record type. Its fields are ordered by declaration, unique, and typed as a scalar, an optional scalar, or a list of scalars. A record type name is not a scalar: it cannot be an optional element type (`VARN3028`), a list element type (`VARN3029`), or another record's field type (`VARN3038`).
+
+`rec[Name](field=value,...)` constructs a record and requires every declared field exactly once. `value.field` reads one declared field and has that field's declared type. Records are immutable, are compared by nothing (there is no `eq` overload for them), and expose no dynamic property access.
+
+Mutable declarations, assignments, arguments, and returns require exact types. There are no implicit conversions. `Result` is planned but not specified yet.
 
 The standard core module provides `add`, `sub`, `mul`, and `div` for `i64` and `f64`. `eq` and `lt` return `bool` for supported exact operand types.
