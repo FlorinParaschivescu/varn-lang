@@ -40,6 +40,34 @@ public static class Program
         end
         """;
 
+    private const string RuleWithFailureProgram = """
+        budget[steps=300]
+        rec Order(items:list[i64],customerTier:str)
+        rec Settlement(total:i64,discount:i64)
+        fn rate(@0:str)->result[i64]
+            if eq(@0,"gold")
+                ret ok(10)
+            end
+            ret err[i64](str.concat("unknown tier: ",@0))
+        end
+        fn main(@0:Order)->result[Settlement]
+            var @1:i64 0
+            each @2:i64 in @0.items max 16
+                set @1 add(@1,@2)
+            end
+            if ok @3:i64 rate(@0.customerTier)
+                if ok @4:i64 num.div(mul(@1,@3),100)
+                    ret ok(rec[Settlement](total=@1,discount=@4))
+                else err @5:str
+                    ret err[Settlement](@5)
+                end
+            else err @6:str
+                ret err[Settlement](@6)
+            end
+            ret err[Settlement]("unreachable")
+        end
+        """;
+
     public static async Task<int> Main()
     {
         var tests = new (string Name, Func<Task> Run)[]
@@ -52,6 +80,7 @@ public static class Program
             ("adapter reports the declared input contract", CheckReportsInputContract),
             ("adapter binds structured host input", RunBindsStructuredInput),
             ("adapter rejects input that violates the contract", RunRejectsInvalidInput),
+            ("adapter separates a failed rule from a rejected run", RunSeparatesFailureFromRejection),
             ("MCP stdio host supports optional, list, and record check-inspect-run", McpHostSupportsCheckRepairRun)
         };
 
@@ -159,6 +188,38 @@ public static class Program
         AssertHasDiagnostic(unexpectedInput.Diagnostics, "VARN6001");
     }
 
+    private static async Task RunSeparatesFailureFromRejection()
+    {
+        var failedRule = await new VarnToolService()
+            .RunAsync(RuleWithFailureProgram, [], 300, 100, """{"items":[1200],"customerTier":"platinum"}""")
+            .ConfigureAwait(false);
+        Assert(failedRule.Success, "Expected a rule that did not hold to still be a successful run.");
+        Assert(failedRule.Diagnostics.Count == 0, FormatDiagnostics(failedRule.Diagnostics));
+        Assert(failedRule.ExitCode == 1, "Expected a failed rule to exit 1.");
+        var failure = JsonSerializer.SerializeToElement(failedRule.ReturnValue!.Value);
+        Assert(!failure.GetProperty("ok").GetBoolean(), "Expected a failed result value.");
+        Assert(
+            failure.GetProperty("error").GetProperty("value").GetString() == "unknown tier: platinum",
+            "Expected the rule's own failure reason.");
+        Assert(failure.GetProperty("value").ValueKind == JsonValueKind.Null, "Expected no success value.");
+
+        var rejectedRun = await new VarnToolService()
+            .RunAsync(RuleWithFailureProgram, [], 300, 100, """{"items":[1200]}""")
+            .ConfigureAwait(false);
+        Assert(!rejectedRun.Success, "Expected an invalid input to be a rejected run, not a failed rule.");
+        AssertHasDiagnostic(rejectedRun.Diagnostics, "VARN6007");
+
+        var succeeded = await new VarnToolService()
+            .RunAsync(RuleWithFailureProgram, [], 300, 100, """{"items":[1200,850,300],"customerTier":"gold"}""")
+            .ConfigureAwait(false);
+        Assert(succeeded.Success && succeeded.ExitCode == 0, "Expected a holding rule to exit 0.");
+        var success = JsonSerializer.SerializeToElement(succeeded.ReturnValue!.Value);
+        Assert(success.GetProperty("ok").GetBoolean(), "Expected a successful result value.");
+        Assert(
+            success.GetProperty("value").GetProperty("value")[1].GetProperty("value").GetProperty("value").GetInt64() == 235,
+            "Expected the 235 discount nested inside the successful result.");
+    }
+
     private static async Task RunRequiresExplicitCapabilities()
     {
         var response = await new VarnToolService().RunAsync(HelloProgram, null, 100, 100).ConfigureAwait(false);
@@ -251,6 +312,12 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("Every callable operation:", StringComparison.Ordinal) is true,
             "Expected an exhaustive standard library listing.");
+        Assert(
+            client.ServerInstructions?.Contains("if ok @1:i64", StringComparison.Ordinal) is true,
+            "Expected result inspection guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("use num.div when the divisor is data", StringComparison.Ordinal) is true,
+            "Expected guidance on checked division.");
         Assert(
             client.ServerInstructions?.Contains("There are no", StringComparison.Ordinal) is true &&
             client.ServerInstructions?.Contains("do not invent a function", StringComparison.Ordinal) is true,

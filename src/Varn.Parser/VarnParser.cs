@@ -244,6 +244,11 @@ public static class VarnParser
                 return ParseIfLetStatement(start);
             }
 
+            if (Current.Kind == TokenKind.Ok)
+            {
+                return ParseIfOkStatement(start);
+            }
+
             var condition = ParseExpression();
             RequireLineEnd();
             SkipNewLines();
@@ -282,6 +287,38 @@ public static class VarnParser
 
             Match(TokenKind.End);
             return new IfLetStatementSyntax(binding, bindingType, optional, thenBody, elseBody, start);
+        }
+
+        private IfOkStatementSyntax ParseIfOkStatement(SourceSpan start)
+        {
+            Match(TokenKind.Ok);
+            var binding = Match(TokenKind.Slot).Text;
+            Match(TokenKind.Colon);
+            var bindingType = ParseType();
+            var result = ParseExpression();
+            RequireLineEnd();
+            SkipNewLines();
+            var thenBody = ParseBlock(TokenKind.Else, TokenKind.End);
+            string? errorBinding = null;
+            IReadOnlyList<StatementSyntax> elseBody = [];
+            if (Current.Kind == TokenKind.Else)
+            {
+                MoveNext();
+                if (Current.Kind == TokenKind.Err)
+                {
+                    MoveNext();
+                    errorBinding = Match(TokenKind.Slot).Text;
+                    Match(TokenKind.Colon);
+                    _ = ParseType();
+                }
+
+                RequireLineEnd();
+                SkipNewLines();
+                elseBody = ParseBlock(TokenKind.End);
+            }
+
+            Match(TokenKind.End);
+            return new IfOkStatementSyntax(binding, bindingType, result, thenBody, errorBinding, elseBody, start);
         }
 
         private LoopStatementSyntax ParseLoopStatement()
@@ -387,6 +424,10 @@ public static class VarnParser
                     return ParseNoneExpression();
                 case TokenKind.List:
                     return ParseListExpression();
+                case TokenKind.Ok:
+                    return ParseOkExpression();
+                case TokenKind.Err:
+                    return ParseErrExpression();
                 case TokenKind.Rec:
                     return ParseRecordExpression();
                 case TokenKind.Slot:
@@ -419,6 +460,27 @@ public static class VarnParser
             var elementType = ParseType();
             Match(TokenKind.RightBracket);
             return new NoneExpressionSyntax(elementType, start);
+        }
+
+        private OkExpressionSyntax ParseOkExpression()
+        {
+            var start = Match(TokenKind.Ok).Span;
+            Match(TokenKind.LeftParen);
+            var value = ParseExpression();
+            Match(TokenKind.RightParen);
+            return new OkExpressionSyntax(value, start);
+        }
+
+        private ErrExpressionSyntax ParseErrExpression()
+        {
+            var start = Match(TokenKind.Err).Span;
+            Match(TokenKind.LeftBracket);
+            var valueType = ParseType();
+            Match(TokenKind.RightBracket);
+            Match(TokenKind.LeftParen);
+            var error = ParseExpression();
+            Match(TokenKind.RightParen);
+            return new ErrExpressionSyntax(valueType, error, start);
         }
 
         private ListExpressionSyntax ParseListExpression()
@@ -504,13 +566,15 @@ public static class VarnParser
         private VarnType ParseType()
         {
             VarnType type;
-            if (Current.Kind == TokenKind.List)
+            if (Current.Kind is TokenKind.List or TokenKind.Result)
             {
-                MoveNext();
+                var constructor = TakeCurrent().Kind;
                 Match(TokenKind.LeftBracket);
-                var elementType = ParseType();
+                var argumentType = ParseType();
                 Match(TokenKind.RightBracket);
-                type = VarnType.List(elementType);
+                type = constructor == TokenKind.List
+                    ? VarnType.List(argumentType)
+                    : VarnType.Result(argumentType);
             }
             else
             {

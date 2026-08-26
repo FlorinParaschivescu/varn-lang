@@ -1,3 +1,4 @@
+using System.Globalization;
 using Varn.ModuleSdk;
 using Varn.Syntax;
 
@@ -22,6 +23,79 @@ public sealed class CoreModule : IVarnModule
         RegisterComparisons(builder);
         RegisterStrings(builder);
         RegisterLists(builder);
+        RegisterFailable(builder);
+    }
+
+    /// <summary>
+    /// The operations that can fail in-domain. Each returns <c>result[T]</c> so the failure is a
+    /// value the caller must inspect, never a diagnostic that aborts the run. Total <c>div</c> and
+    /// <c>mod</c> still exist and still trap on a zero divisor, because a zero literal divisor is a
+    /// defect rather than an expected outcome; reach for these when the divisor is data.
+    /// </summary>
+    private static void RegisterFailable(VarnModuleBuilder builder)
+    {
+        RegisterCheckedI64(builder, "num.div", static (left, right) => left / right);
+        RegisterCheckedI64(builder, "num.mod", static (left, right) => left % right);
+
+        builder.Function(
+            new VarnFunctionSignature("num.to_f64", [VarnType.I64], VarnType.F64),
+            static (_, arguments, _) => ValueTask.FromResult(VarnValue.From((double)arguments[0].AsI64())));
+
+        builder.Function(
+            new VarnFunctionSignature("num.to_i64", [VarnType.F64], VarnType.Result(VarnType.I64)),
+            static (_, arguments, _) =>
+            {
+                var value = arguments[0].AsF64();
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    return ValueTask.FromResult(VarnValue.Err(VarnType.I64, "not a finite number"));
+                }
+
+                if (value != Math.Truncate(value))
+                {
+                    return ValueTask.FromResult(VarnValue.Err(VarnType.I64, "not a whole number"));
+                }
+
+                return ValueTask.FromResult(value is >= -9223372036854775808.0 and < 9223372036854775808.0
+                    ? VarnValue.Ok(VarnValue.From((long)value))
+                    : VarnValue.Err(VarnType.I64, "outside the i64 range"));
+            });
+
+        builder.Function(
+            new VarnFunctionSignature("str.to_i64", [VarnType.String], VarnType.Result(VarnType.I64)),
+            static (_, arguments, _) => ValueTask.FromResult(
+                long.TryParse(Text(arguments[0]), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    ? VarnValue.Ok(VarnValue.From(parsed))
+                    : VarnValue.Err(VarnType.I64, "not an i64")));
+
+        builder.Function(
+            new VarnFunctionSignature("str.to_f64", [VarnType.String], VarnType.Result(VarnType.F64)),
+            static (_, arguments, _) => ValueTask.FromResult(
+                double.TryParse(Text(arguments[0]), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                    && !double.IsNaN(parsed) && !double.IsInfinity(parsed)
+                    ? VarnValue.Ok(VarnValue.From(parsed))
+                    : VarnValue.Err(VarnType.F64, "not an f64")));
+    }
+
+    private static void RegisterCheckedI64(VarnModuleBuilder builder, string name, Func<long, long, long> operation)
+    {
+        builder.Function(
+            new VarnFunctionSignature(name, [VarnType.I64, VarnType.I64], VarnType.Result(VarnType.I64)),
+            (_, arguments, _) =>
+            {
+                var divisor = arguments[1].AsI64();
+                if (divisor == 0)
+                {
+                    return ValueTask.FromResult(VarnValue.Err(VarnType.I64, "divide by zero"));
+                }
+
+                if (arguments[0].AsI64() == long.MinValue && divisor == -1)
+                {
+                    return ValueTask.FromResult(VarnValue.Err(VarnType.I64, "outside the i64 range"));
+                }
+
+                return ValueTask.FromResult(VarnValue.Ok(VarnValue.From(operation(arguments[0].AsI64(), divisor))));
+            });
     }
 
     private static void RegisterArithmetic(VarnModuleBuilder builder)

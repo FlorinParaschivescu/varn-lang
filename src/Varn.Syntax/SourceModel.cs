@@ -26,9 +26,14 @@ public sealed record VarnType(string Name)
 
     public bool IsList => Name.StartsWith("list[", StringComparison.Ordinal) && Name.EndsWith(']');
 
+    public bool IsResult => Name.StartsWith("result[", StringComparison.Ordinal) && Name.EndsWith(']');
+
     public VarnType? OptionalElementType => IsOptional ? Parse(Name[..^1]) : null;
 
     public VarnType? ListElementType => IsList ? Parse(Name[5..^1]) : null;
+
+    /// <summary>The success type carried by a <c>result[T]</c>. Its failure type is always <c>str</c>.</summary>
+    public VarnType? ResultValueType => IsResult ? Parse(Name[7..^1]) : null;
 
     public static VarnType Optional(VarnType elementType)
     {
@@ -42,6 +47,12 @@ public sealed record VarnType(string Name)
         return new VarnType($"list[{elementType.Name}]");
     }
 
+    public static VarnType Result(VarnType valueType)
+    {
+        ArgumentNullException.ThrowIfNull(valueType);
+        return new VarnType($"result[{valueType.Name}]");
+    }
+
     public static VarnType Parse(string name)
     {
         if (name.EndsWith("?", StringComparison.Ordinal))
@@ -52,6 +63,11 @@ public sealed record VarnType(string Name)
         if (name.StartsWith("list[", StringComparison.Ordinal) && name.EndsWith(']'))
         {
             return List(Parse(name[5..^1]));
+        }
+
+        if (name.StartsWith("result[", StringComparison.Ordinal) && name.EndsWith(']'))
+        {
+            return Result(Parse(name[7..^1]));
         }
 
         return name switch

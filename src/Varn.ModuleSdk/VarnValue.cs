@@ -35,6 +35,19 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         return new VarnValue(VarnType.List(elementType), Array.AsReadOnly(values));
     }
 
+    /// <summary>A successful <c>result[T]</c> carrying <paramref name="value"/>.</summary>
+    public static VarnValue Ok(VarnValue value) =>
+        new(VarnType.Result(ValidateResultValueType(value.Type)), new VarnResultValue(true, value));
+
+    /// <summary>A failed <c>result[T]</c> carrying an ordinary <c>str</c> message.</summary>
+    public static VarnValue Err(VarnType valueType, string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return new VarnValue(
+            VarnType.Result(ValidateResultValueType(valueType)),
+            new VarnResultValue(false, From(message)));
+    }
+
     public static VarnValue FromRecord(VarnRecordShape shape, IEnumerable<VarnValue> fieldValues)
     {
         ArgumentNullException.ThrowIfNull(shape);
@@ -85,6 +98,10 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
 
     public bool IsRecord => Value is VarnRecordValue;
 
+    public bool IsResult => Value is VarnResultValue;
+
+    public bool IsOk => Value is VarnResultValue { IsOk: true };
+
     public long AsI64() => Value is long value
         ? value
         : throw new InvalidOperationException($"Expected i64, got {Type}.");
@@ -108,6 +125,23 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
     public VarnRecordValue AsRecord() => Value is VarnRecordValue record
         ? record
         : throw new InvalidOperationException($"Expected record, got {Type}.");
+
+    public VarnResultValue AsResult() => Value is VarnResultValue result
+        ? result
+        : throw new InvalidOperationException($"Expected result, got {Type}.");
+
+    /// <summary>
+    /// A result may carry a scalar or a record. Lists, optionals, and nested results are rejected
+    /// here; the checker separately rejects a record name the program never declared.
+    /// </summary>
+    private static VarnType ValidateResultValueType(VarnType valueType)
+    {
+        ArgumentNullException.ThrowIfNull(valueType);
+        return valueType.IsScalar || (!valueType.IsList && !valueType.IsOptional && !valueType.IsResult &&
+            valueType != VarnType.Null && valueType != VarnType.Any)
+            ? valueType
+            : throw new ArgumentException($"Type '{valueType}' cannot be a result value type.", nameof(valueType));
+    }
 
     private static VarnType ValidateOptionalElementType(VarnType elementType)
     {
@@ -134,6 +168,13 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
             return $"{record.Shape.Name}({string.Join(",", fields)})";
         }
 
+        if (Value is VarnResultValue result)
+        {
+            return result.IsOk
+                ? $"ok({result.Value.ToCanonicalString()})"
+                : $"err[{Type.ResultValueType}]({result.Value.ToCanonicalString()})";
+        }
+
         if (Type.IsOptional)
         {
             return Value is VarnValue value
@@ -155,6 +196,23 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
             _ => Convert.ToString(Value, CultureInfo.InvariantCulture) ?? "null"
         };
     }
+}
+
+/// <summary>
+/// Either the success value of a <c>result[T]</c> or its <c>str</c> failure message. Both sides are
+/// ordinary Varn values, and a program must inspect which side is present before reading either.
+/// </summary>
+public sealed class VarnResultValue
+{
+    internal VarnResultValue(bool isOk, VarnValue value)
+    {
+        IsOk = isOk;
+        Value = value;
+    }
+
+    public bool IsOk { get; }
+
+    public VarnValue Value { get; }
 }
 
 public sealed class VarnRecordValue

@@ -84,13 +84,23 @@ public sealed class VarnTypeChecker
                 main.Parameters[0].Span);
         }
 
-        if (main.ReturnType != VarnType.I64 && !_records.ContainsKey(main.ReturnType.Name))
+        if (!IsEntryPointResultType(main.ReturnType))
         {
             Report(
                 "VARN3004",
-                $"The entry point must return i64 or a declared record type, not {main.ReturnType}.",
+                $"The entry point must return i64, a declared record type, or a result of either, not {main.ReturnType}.",
                 main.Span);
         }
+    }
+
+    private bool IsEntryPointResultType(VarnType type)
+    {
+        if (type.IsResult)
+        {
+            return IsEntryPointResultType(type.ResultValueType!);
+        }
+
+        return type == VarnType.I64 || _records.ContainsKey(type.Name);
     }
 
     private IReadOnlyDictionary<string, VarnRecordShape> CollectRecords(ProgramSyntax program)
@@ -256,6 +266,9 @@ public sealed class VarnTypeChecker
                 case IfLetStatementSyntax ifLet:
                     CheckIfLet(ifLet, function, symbols);
                     break;
+                case IfOkStatementSyntax ifOk:
+                    CheckIfOk(ifOk, function, symbols);
+                    break;
                 case LoopStatementSyntax loop:
                     CheckLoop(loop, function, symbols);
                     break;
@@ -296,6 +309,43 @@ public sealed class VarnTypeChecker
             ifLet.ElseBody,
             function,
             new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal));
+    }
+
+    private void CheckIfOk(
+        IfOkStatementSyntax ifOk,
+        FunctionSyntax function,
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
+    {
+        CheckType(ifOk.BindingType, ifOk.Span);
+        var resultType = CheckExpression(ifOk.Result, function, symbols);
+        if (!resultType.IsResult)
+        {
+            Report("VARN3047", $"An if ok source must be a result, not {resultType}.", ifOk.Result.Span);
+        }
+        else if (resultType.ResultValueType != ifOk.BindingType)
+        {
+            Report(
+                "VARN3048",
+                $"An if ok binding of type {ifOk.BindingType} cannot extract {resultType.ResultValueType} from {resultType}.",
+                ifOk.Span);
+        }
+
+        var thenSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
+        if (!thenSymbols.TryAdd(ifOk.Binding, new SlotSymbol(ifOk.BindingType, IsMutable: false)))
+        {
+            Report("VARN3005", $"Slot '{ifOk.Binding}' is declared more than once.", ifOk.Span);
+        }
+
+        CheckStatements(ifOk.ThenBody, function, thenSymbols);
+
+        var elseSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
+        if (ifOk.ErrorBinding is { } errorBinding &&
+            !elseSymbols.TryAdd(errorBinding, new SlotSymbol(VarnType.String, IsMutable: false)))
+        {
+            Report("VARN3005", $"Slot '{errorBinding}' is declared more than once.", ifOk.Span);
+        }
+
+        CheckStatements(ifOk.ElseBody, function, elseSymbols);
     }
 
     private void CheckLoop(
@@ -392,6 +442,21 @@ public sealed class VarnTypeChecker
                 var noneType = VarnType.Optional(none.ElementType);
                 CheckType(noneType, none.Span);
                 return noneType;
+            case OkExpressionSyntax ok:
+                var okValueType = CheckExpression(ok.Value, containingFunction, symbols);
+                var okType = VarnType.Result(okValueType);
+                CheckType(okType, ok.Span);
+                return okType;
+            case ErrExpressionSyntax err:
+                var errorType = CheckExpression(err.Error, containingFunction, symbols);
+                if (errorType != VarnType.String)
+                {
+                    Report("VARN3046", $"A result failure must be str, not {errorType}.", err.Error.Span);
+                }
+
+                var errType = VarnType.Result(err.ValueType);
+                CheckType(errType, err.Span);
+                return errType;
             case ListExpressionSyntax list:
                 CheckType(VarnType.List(list.ElementType), list.Span);
                 if (list.Elements.Count > VarnValue.MaxListElements)
@@ -637,6 +702,17 @@ public sealed class VarnTypeChecker
                 elementType != VarnType.Bool && elementType != VarnType.String)
             {
                 Report("VARN3029", $"List element type '{elementType}' is not supported.", span);
+            }
+
+            return;
+        }
+
+        if (type.IsResult)
+        {
+            var valueType = type.ResultValueType!;
+            if (!valueType.IsScalar && !_records.ContainsKey(valueType.Name))
+            {
+                Report("VARN3045", $"Result value type '{valueType}' is not supported.", span);
             }
 
             return;

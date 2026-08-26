@@ -95,6 +95,37 @@ end
 
 The source must be a list (`VARN3032`), the binding must match its element type (`VARN3033`), and `max` must be between 0 and 1,024 (`VARN3034`). The runtime rejects a list longer than the stated maximum with `VARN4006`; it never truncates traversal. Construction charges one step per element, and traversal charges every iteration boundary and body operation.
 
+## Result values
+
+`result[T]` carries either a success value of type `T` or a `str` failure message. `T` is a scalar or a declared record; lists, optionals, and nested results are not result value types (`VARN3045`).
+
+```varn
+fn rate(@0:str)->result[i64]
+    if eq(@0,"gold")
+        ret ok(10)
+    end
+    ret err[i64](str.concat("unknown tier: ",@0))
+end
+```
+
+`ok(expression)` infers its type from the expression. `err[T](expression)` states the success type it is standing in for, exactly as `none[T]` does, and its expression must be `str` (`VARN3046`).
+
+`if ok` is the only operation that extracts either side:
+
+```varn
+if ok @1:i64 rate(@0.customerTier)
+    ret @1
+else err @2:str
+    ret str.length(@2)
+end
+```
+
+The source must be a result (`VARN3047`) and the binding type must exactly match its success type (`VARN3048`). The `else err` clause is optional; a plain `else` runs the failure branch without binding the message. Both bindings are immutable, exist only in their own branch, and cannot escape. There is no unchecked extraction.
+
+A result is for an **expected, in-domain failure**: an unknown tier, an unparsable field, a divisor that is data. It is not for defects. `div` and `mod` still trap on a zero divisor, because a zero literal divisor is a bug rather than an outcome; use `num.div` and `num.mod` when the divisor comes from input.
+
+`main` may return `result[T]`. A program that returns a failure ran correctly, so the run reports `success` with no diagnostics and the failure appears in `returnValue`; the process exit code is `1`, distinguishing a rule that did not hold from a run that was rejected.
+
 ## Typed records
 
 A record declaration is a program-level directive. It names a closed structure and lists its fields in one line:

@@ -76,6 +76,23 @@ builder.Function(
 
 `VarnValue.FromRecord` requires one value per declared field, in declared order, with exact types, and rejects unsupported field types. `AsRecord()` returns the value's shape and values, and `GetField(name)` reads one field. A shape rejects duplicate or empty field names at construction.
 
+## Result values
+
+Module signatures use `VarnType.Result(valueType)`. Handlers return `VarnValue.Ok(value)` or `VarnValue.Err(valueType, message)`:
+
+```csharp
+builder.Function(
+    new VarnFunctionSignature("num.div", [VarnType.I64, VarnType.I64], VarnType.Result(VarnType.I64)),
+    static (_, arguments, _) => ValueTask.FromResult(
+        arguments[1].AsI64() == 0
+            ? VarnValue.Err(VarnType.I64, "divide by zero")
+            : VarnValue.Ok(VarnValue.From(arguments[0].AsI64() / arguments[1].AsI64()))));
+```
+
+`IsResult` and `IsOk` test a value, and `AsResult()` exposes the carried side. A result may carry a scalar or a record; the factories reject lists, optionals, and nested results.
+
+Prefer returning a failed result over throwing. An exception becomes `VARN4003` and aborts the run, so it should be reserved for defects, not for outcomes a program is expected to handle.
+
 ## Security boundary
 
 An `IVarnModule` assembly executes as trusted .NET host code. Varn gates calls into it, but cannot stop malicious initialization or handler code from using ambient .NET APIs. Do not load untrusted assemblies.

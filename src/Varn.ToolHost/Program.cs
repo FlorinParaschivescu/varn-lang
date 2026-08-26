@@ -42,7 +42,12 @@ builder.Services
             "eq ne (i64/f64/bool/str), lt gt lte gte (i64/f64/str), str.length str.concat str.contains " +
             "str.starts_with str.ends_with, list.length list.get list.contains, io.print. There are no " +
             "operators, so write and(gte(@0,10),eq(@1,\"gold\")) rather than @0>=10 && @1==\"gold\". " +
-            "Both operands of and/or are always evaluated. Nothing else exists: do not invent a function.";
+            "Both operands of and/or are always evaluated. Nothing else exists: do not invent a function. " +
+            "For a failure a caller must handle, use result[T]: build it with ok(value) or " +
+            "err[T](\"message\"), and read it with if ok @1:i64 <expr> ... else err @2:str ... end. " +
+            "num.div num.mod num.to_i64 str.to_i64 str.to_f64 return result[T]; plain div and mod trap on a " +
+            "zero divisor, so use num.div when the divisor is data. main may return result[T]: a failed " +
+            "result still reports success with no diagnostics, because the run completed and the rule did not hold.";
     })
     .WithStdioServerTransport()
     .WithTools<VarnMcpTools>();

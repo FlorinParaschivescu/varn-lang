@@ -31,7 +31,10 @@ public static class VarnLexer
             ["some"] = TokenKind.Some,
             ["none"] = TokenKind.None,
             ["list"] = TokenKind.List,
-            ["rec"] = TokenKind.Rec
+            ["rec"] = TokenKind.Rec,
+            ["result"] = TokenKind.Result,
+            ["ok"] = TokenKind.Ok,
+            ["err"] = TokenKind.Err
         };
 
     public static LexResult Lex(string source)

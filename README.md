@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 79 language/runtime tests and 9 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 90 language/runtime tests and 10 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -92,6 +92,27 @@ end
 ```
 
 `add sub mul div mod min max abs` for `i64`/`f64`, `and or not` for `bool`, `eq ne` for every scalar, `lt gt lte gte` for `i64`/`f64`/`str`, `str.length str.concat str.contains str.starts_with str.ends_with`, and `list.length list.get list.contains`. All total, pure, and exactly typed, with no implicit conversions. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
+
+## Expected failure is a value
+
+```varn
+fn main(@0:Order)->result[Settlement]
+    if ok @3:i64 rate(@0.customerTier)
+        ret ok(rec[Settlement](total=@1,discount=@3))
+    else err @6:str
+        ret err[Settlement](@6)
+    end
+end
+```
+
+`result[T]` carries a success value or a `str` reason, `ok`/`err[T]` construct it, and `if ok ... else err ...` is the only way to read either side. A program that returns a failure **ran correctly**, so the response reports `success` with no diagnostics and the reason in `returnValue`:
+
+```json
+{"success":true,"exitCode":1,"returnValue":{"type":"result[Settlement]",
+  "value":{"ok":false,"value":null,"error":{"type":"str","value":"unknown tier: platinum"}}}}
+```
+
+That distinction is the point: a rule that did not hold is not a broken run. `num.div`, `num.mod`, `num.to_i64`, `str.to_i64`, and `str.to_f64` return results for the same reason. See [examples/rule-with-failure.varn](examples/rule-with-failure.varn).
 
 ## Host input: one program, many inputs
 
@@ -167,7 +188,7 @@ The adapter has been exercised through real Codex check–repair–inspect–run
 ## Practical test readiness
 
 - Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, small bounded typed-list transformations, closed structured records, and one verified program reused across many structured host inputs.
-- After `Result`: explicit failure contracts instead of diagnostics for expected, in-domain failures.
+- Next: a reproducible benchmark against Python plus JSON tool calls, measuring silent-wrong rate and tokens to verified-correct.
 - After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
 - After process isolation: community execution of modules that are not already trusted host code.
 
@@ -211,9 +232,9 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: a total standard library of arithmetic, boolean, comparison, string, and list operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: explicit `result` values for expected failures; a standard library of arithmetic, boolean, comparison, string, list, conversion, and parsing operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
-Intentionally deferred: `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: structured result failure types, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 

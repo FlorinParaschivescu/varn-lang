@@ -184,6 +184,28 @@ public sealed class VarnEngine
                         }
 
                         break;
+                    case IfOkStatementSyntax ifOk:
+                        var resultValue = await EvaluateAsync(ifOk.Result, frame, cancellationToken).ConfigureAwait(false);
+                        var okFrame = new Dictionary<string, SlotCell>(frame, StringComparer.Ordinal);
+                        var okBody = ifOk.ElseBody;
+                        if (resultValue.IsOk)
+                        {
+                            okFrame.Add(ifOk.Binding, new SlotCell(resultValue.AsResult().Value));
+                            okBody = ifOk.ThenBody;
+                        }
+                        else if (ifOk.ErrorBinding is { } errorBinding)
+                        {
+                            okFrame.Add(errorBinding, new SlotCell(resultValue.AsResult().Value));
+                        }
+
+                        var okResult = await ExecuteStatementsAsync(okBody, okFrame, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (okResult.HasReturn)
+                        {
+                            return okResult;
+                        }
+
+                        break;
                     case LoopStatementSyntax loop:
                         for (var current = loop.StartInclusive; current < loop.EndExclusive; current++)
                         {
@@ -247,6 +269,11 @@ public sealed class VarnEngine
                 SomeExpressionSyntax some => VarnValue.Some(
                     await EvaluateAsync(some.Value, frame, cancellationToken).ConfigureAwait(false)),
                 NoneExpressionSyntax none => VarnValue.None(none.ElementType),
+                OkExpressionSyntax ok => VarnValue.Ok(
+                    await EvaluateAsync(ok.Value, frame, cancellationToken).ConfigureAwait(false)),
+                ErrExpressionSyntax err => VarnValue.Err(
+                    err.ValueType,
+                    (string)(await EvaluateAsync(err.Error, frame, cancellationToken).ConfigureAwait(false)).Value!),
                 ListExpressionSyntax list => await EvaluateListAsync(list, frame, cancellationToken).ConfigureAwait(false),
                 RecordExpressionSyntax record => await EvaluateRecordAsync(record, frame, cancellationToken).ConfigureAwait(false),
                 FieldExpressionSyntax field => await EvaluateFieldAsync(field, frame, cancellationToken).ConfigureAwait(false),

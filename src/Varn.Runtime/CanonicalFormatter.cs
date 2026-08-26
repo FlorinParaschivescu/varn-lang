@@ -110,6 +110,15 @@ public static class CanonicalFormatter
                     AppendJoined(ifLet.ElseBody, AppendStatement);
                     _builder.Append("}}");
                     break;
+                case IfOkStatementSyntax ifOk:
+                    _builder.Append("U(").Append(ifOk.Binding).Append(':').Append(ifOk.BindingType.Name).Append(',');
+                    AppendExpression(ifOk.Result);
+                    _builder.Append("){T{");
+                    AppendJoined(ifOk.ThenBody, AppendStatement);
+                    _builder.Append("};E[").Append(ifOk.ErrorBinding ?? string.Empty).Append("]{");
+                    AppendJoined(ifOk.ElseBody, AppendStatement);
+                    _builder.Append("}}");
+                    break;
                 case LoopStatementSyntax loop:
                     _builder.Append("O(")
                         .Append(loop.Iterator).Append(':').Append(loop.IteratorType.Name).Append(',')
@@ -143,6 +152,16 @@ public static class CanonicalFormatter
                     break;
                 case NoneExpressionSyntax none:
                     _builder.Append("N[").Append(none.ElementType.Name).Append(']');
+                    break;
+                case OkExpressionSyntax ok:
+                    _builder.Append("Y(");
+                    AppendExpression(ok.Value);
+                    _builder.Append(')');
+                    break;
+                case ErrExpressionSyntax err:
+                    _builder.Append("Z[").Append(err.ValueType.Name).Append("](");
+                    AppendExpression(err.Error);
+                    _builder.Append(')');
                     break;
                 case ListExpressionSyntax list:
                     _builder.Append("Q[").Append(list.ElementType.Name).Append("](");

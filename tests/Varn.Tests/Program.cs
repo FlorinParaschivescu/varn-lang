@@ -103,6 +103,17 @@ public static class Program
             ("standard library rejects inexact operand types", StandardLibraryRejectsInexactTypes),
             ("a compound rule needs no helper function", CompoundRuleNeedsNoHelperFunction),
             ("loop keywords are usable as ordinary names", ContextualKeywordsAreUsableAsNames),
+            ("result type and value contracts are explicit", ResultTypeAndValueContractsAreExplicit),
+            ("an expected failure is a value, not a diagnostic", ExpectedFailureIsAValue),
+            ("if ok binds the success and failure sides", IfOkBindsBothSides),
+            ("checker validates result inspection", CheckerValidatesResultInspection),
+            ("checker requires a str failure value", CheckerRequiresStrFailure),
+            ("checker rejects unsupported result value types", CheckerRejectsUnsupportedResultValueTypes),
+            ("result bindings do not escape and are immutable", ResultBindingsDoNotEscape),
+            ("checked division reports failure instead of trapping", CheckedDivisionReportsFailure),
+            ("conversion and parsing return results", ConversionAndParsingReturnResults),
+            ("entry point may return a result", EntryPointMayReturnResult),
+            ("canonical inspection includes results", CanonicalInspectionIncludesResults),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -1714,6 +1725,386 @@ public static class Program
         Assert(result.IsSuccess, $"{expression}: {FormatDiagnostics(result.Diagnostics)}");
         return result.ReturnValue!.Value.AsI64();
     }
+
+    private static Task ResultTypeAndValueContractsAreExplicit()
+    {
+        var type = VarnType.Result(VarnType.I64);
+        Assert(type.IsResult, "Expected a result type.");
+        Assert(type.ResultValueType == VarnType.I64, "Expected the i64 result value type.");
+        Assert(VarnType.Parse("result[i64]") == type, "Expected result type parsing to be stable.");
+        Assert(!type.IsList && !type.IsOptional, "Expected a result to be its own type constructor.");
+
+        var ok = VarnValue.Ok(VarnValue.From(42L));
+        Assert(ok.Type == type && ok.IsResult && ok.IsOk, "Expected a successful result[i64].");
+        Assert(ok.AsResult().Value.AsI64() == 42, "Expected the carried success value.");
+        Assert(ok.ToCanonicalString() == "ok(42)", $"Expected canonical ok text, got '{ok.ToCanonicalString()}'.");
+
+        var err = VarnValue.Err(VarnType.I64, "divide by zero");
+        Assert(err.Type == type && err.IsResult && !err.IsOk, "Expected a failed result[i64].");
+        Assert(err.AsResult().Value.Value as string == "divide by zero", "Expected the carried failure message.");
+        Assert(
+            err.ToCanonicalString() == "err[i64](divide by zero)",
+            $"Expected canonical err text, got '{err.ToCanonicalString()}'.");
+
+        AssertResultFactoryRejects(VarnType.Null);
+        AssertResultFactoryRejects(VarnType.Any);
+        AssertResultFactoryRejects(VarnType.List(VarnType.I64));
+        AssertResultFactoryRejects(VarnType.Optional(VarnType.I64));
+        AssertResultFactoryRejects(VarnType.Result(VarnType.I64));
+        AssertOptionalFactoryRejects(type);
+        AssertListFactoryRejects(type, []);
+        return Task.CompletedTask;
+    }
+
+    private static async Task ExpectedFailureIsAValue()
+    {
+        var failed = await RunWithInputAsync(
+            RuleWithFailureProgram,
+            """{"items":[1200,850,300],"customerTier":"platinum"}""").ConfigureAwait(false);
+        Assert(failed.IsSuccess, "Expected an in-domain failure to still be a successful run.");
+        Assert(failed.Diagnostics.Count == 0, FormatDiagnostics(failed.Diagnostics));
+        var value = failed.ReturnValue ?? throw new InvalidOperationException("Expected a result value.");
+        Assert(value.IsResult && !value.IsOk, "Expected a failed result value.");
+        Assert(
+            value.AsResult().Value.Value as string == "unknown tier: platinum",
+            "Expected the rule's own failure message.");
+        Assert(failed.ExitCode == 1, "Expected a failed rule to exit 1 even though the run succeeded.");
+
+        var succeeded = await RunWithInputAsync(
+            RuleWithFailureProgram,
+            """{"items":[1200,850,300],"customerTier":"gold"}""").ConfigureAwait(false);
+        Assert(succeeded.ReturnValue?.IsOk == true, "Expected a successful result.");
+        Assert(
+            succeeded.ReturnValue!.Value.AsResult().Value.AsRecord().GetField("discount").AsI64() == 235,
+            "Expected the 235 discount inside the successful result.");
+        Assert(succeeded.ExitCode == 0, "Expected a successful structured result to exit 0.");
+    }
+
+    private static async Task IfOkBindsBothSides()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                if ok @0:i64 num.div(10,0)
+                    ret @0
+                else err @1:str
+                    ret str.length(@1)
+                end
+                ret -1
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 14, "Expected the bound failure message 'divide by zero'.");
+
+        const string withoutErrorBinding = """
+            budget[steps=100]
+            fn main()->i64
+                if ok @0:i64 num.div(10,2)
+                    ret @0
+                else
+                    ret -1
+                end
+                ret 0
+            end
+            """;
+        var plain = await CreateEngine().RunAsync(withoutErrorBinding).ConfigureAwait(false);
+        Assert(plain.ReturnValue?.AsI64() == 5, "Expected the success side without an error binding.");
+    }
+
+    private static Task CheckerValidatesResultInspection()
+    {
+        const string notAResult = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64 1
+                if ok @1:i64 @0
+                    ret @1
+                end
+                ret 0
+            end
+            """;
+        const string wrongBinding = """
+            budget[steps=20]
+            fn main()->i64
+                if ok @0:str num.div(4,2)
+                    ret 1
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(notAResult).Diagnostics, "VARN3047");
+        AssertHasDiagnostic(CreateEngine().Check(wrongBinding).Diagnostics, "VARN3048");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRequiresStrFailure()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:result[i64] err[i64](42)
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3046");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsUnsupportedResultValueTypes()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:result[null] err[null]("x")
+                let @1:result[list[i64]] err[list[i64]]("x")
+                let @2:result[result[i64]] err[result[i64]]("x")
+                let @3:result[Missing] err[Missing]("x")
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        Assert(
+            diagnostics.Count(static diagnostic => diagnostic.Code == "VARN3045") >= 4,
+            FormatDiagnostics(diagnostics));
+        return Task.CompletedTask;
+    }
+
+    private static Task ResultBindingsDoNotEscape()
+    {
+        const string escapes = """
+            budget[steps=40]
+            fn main()->i64
+                if ok @0:i64 num.div(4,2)
+                end
+                ret @0
+            end
+            """;
+        const string mutates = """
+            budget[steps=40]
+            fn main()->i64
+                if ok @0:i64 num.div(4,2)
+                    set @0 9
+                end
+                ret 0
+            end
+            """;
+        const string errorEscapes = """
+            budget[steps=40]
+            fn main()->i64
+                if ok @0:i64 num.div(4,2)
+                    ret @0
+                else err @1:str
+                    ret 0
+                end
+                ret str.length(@1)
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(escapes).Diagnostics, "VARN3010");
+        AssertHasDiagnostic(CreateEngine().Check(mutates).Diagnostics, "VARN3024");
+        AssertHasDiagnostic(CreateEngine().Check(errorEscapes).Diagnostics, "VARN3010");
+        return Task.CompletedTask;
+    }
+
+    private static async Task CheckedDivisionReportsFailure()
+    {
+        (string Expression, string Expected)[] cases =
+        [
+            ("num.div(10,0)", "divide by zero"),
+            ("num.mod(10,0)", "divide by zero")
+        ];
+
+        foreach (var (expression, expected) in cases)
+        {
+            var message = await EvaluateFailureAsync(expression).ConfigureAwait(false);
+            Assert(message == expected, $"Expected {expression} to fail with '{expected}', got '{message}'.");
+        }
+
+        var trapped = await CreateEngine().RunAsync("""
+            budget[steps=40]
+            fn main()->i64
+                ret div(10,0)
+            end
+            """).ConfigureAwait(false);
+        Assert(!trapped.IsSuccess, "Expected total div by zero to remain a trap.");
+        AssertHasDiagnostic(trapped.Diagnostics, "VARN4003");
+    }
+
+    private static async Task ConversionAndParsingReturnResults()
+    {
+        (string Expression, string? Expected)[] failures =
+        [
+            ("""str.to_i64("nope")""", "not an i64"),
+            ("""str.to_f64("nope")""", "not an f64"),
+            ("num.to_i64(1.5)", "not a whole number"),
+            ("num.to_i64(div(0.0,0.0))", "not a finite number")
+        ];
+
+        foreach (var (expression, expected) in failures)
+        {
+            var message = await EvaluateFailureAsync(expression).ConfigureAwait(false);
+            Assert(message == expected, $"Expected {expression} to fail with '{expected}', got '{message}'.");
+        }
+
+        var parsed = await CreateEngine().RunAsync("""
+            budget[steps=100]
+            fn main()->i64
+                if ok @0:i64 str.to_i64("41")
+                    ret add(@0,1)
+                end
+                ret -1
+            end
+            """).ConfigureAwait(false);
+        Assert(parsed.IsSuccess, FormatDiagnostics(parsed.Diagnostics));
+        Assert(parsed.ReturnValue?.AsI64() == 42, "Expected a parsed 41 plus one.");
+
+        var widened = await CreateEngine().RunAsync("""
+            budget[steps=100]
+            fn main()->i64
+                let @0:f64 num.to_f64(3)
+                if gt(@0,2.5)
+                    ret 1
+                end
+                ret 0
+            end
+            """).ConfigureAwait(false);
+        Assert(widened.ReturnValue?.AsI64() == 1, "Expected total i64 to f64 widening.");
+    }
+
+    private static Task EntryPointMayReturnResult()
+    {
+        Assert(CreateEngine().Check(RuleWithFailureProgram).IsValid, "Expected a result entry point to be valid.");
+        Assert(
+            CreateEngine().Check("""
+                budget[steps=20]
+                fn main()->result[i64]
+                    ret ok(0)
+                end
+                """).IsValid,
+            "Expected result[i64] to be a valid entry point type.");
+        AssertHasDiagnostic(
+            CreateEngine().Check("""
+                budget[steps=20]
+                fn main()->result[str]
+                    ret ok("x")
+                end
+                """).Diagnostics,
+            "VARN3004");
+        return Task.CompletedTask;
+    }
+
+    private static Task CanonicalInspectionIncludesResults()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                if ok @0:i64 num.div(4,2)
+                    ret @0
+                else err @1:str
+                    ret str.length(@1)
+                end
+                ret 0
+            end
+            """;
+        var check = CreateEngine().Check(source);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+        var canonical = CanonicalFormatter.Format(check.Program);
+        Assert(
+            canonical == CanonicalFormatter.Format(check.Program),
+            "Canonical formatter changed output for the same tree.");
+        Assert(
+            canonical.Contains("U(@0:i64,A[num.div(", StringComparison.Ordinal),
+            $"Canonical output omitted the result inspection: {canonical}");
+        Assert(
+            canonical.Contains("E[@1]{", StringComparison.Ordinal),
+            "Canonical output omitted the bound failure slot.");
+
+        var constructors = CreateEngine().Check("""
+            budget[steps=20]
+            fn main()->result[i64]
+                let @0:result[i64] err[i64]("x")
+                ret ok(1)
+            end
+            """);
+        var constructorCanonical = CanonicalFormatter.Format(constructors.Program);
+        Assert(
+            constructorCanonical.Contains("""Z[i64](K[str:"x"])""", StringComparison.Ordinal),
+            "Canonical output omitted err construction.");
+        Assert(
+            constructorCanonical.Contains("Y(K[i64:1])", StringComparison.Ordinal),
+            "Canonical output omitted ok construction.");
+        return Task.CompletedTask;
+    }
+
+    private static async Task<string> EvaluateFailureAsync(string expression)
+    {
+        var result = await CreateEngine().RunAsync($$"""
+            budget[steps=200]
+            rec Wrapper(message:str)
+            fn main()->Wrapper
+                if ok @0:i64 str.to_i64("0")
+                    ret probe()
+                end
+                ret rec[Wrapper](message="unreachable")
+            end
+            fn probe()->Wrapper
+                if ok @1:{{ValueTypeOf(expression)}} {{expression}}
+                    ret rec[Wrapper](message="unexpected success")
+                else err @2:str
+                    ret rec[Wrapper](message=@2)
+                end
+                ret rec[Wrapper](message="unreachable")
+            end
+            """).ConfigureAwait(false);
+        Assert(result.IsSuccess, $"{expression}: {FormatDiagnostics(result.Diagnostics)}");
+        return (result.ReturnValue!.Value.AsRecord().GetField("message").Value as string)!;
+    }
+
+    private static string ValueTypeOf(string expression) =>
+        expression.Contains("to_f64", StringComparison.Ordinal) ? "f64" : "i64";
+
+    private static void AssertResultFactoryRejects(VarnType valueType)
+    {
+        try
+        {
+            _ = VarnValue.Err(valueType, "x");
+            throw new InvalidOperationException($"Expected the result factory to reject {valueType}.");
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
+    private const string RuleWithFailureProgram = """
+        budget[steps=300]
+        rec Order(items:list[i64],customerTier:str)
+        rec Settlement(total:i64,discount:i64)
+        fn rate(@0:str)->result[i64]
+            if eq(@0,"gold")
+                ret ok(10)
+            end
+            if eq(@0,"basic")
+                ret ok(0)
+            end
+            ret err[i64](str.concat("unknown tier: ",@0))
+        end
+        fn main(@0:Order)->result[Settlement]
+            var @1:i64 0
+            each @2:i64 in @0.items max 16
+                set @1 add(@1,@2)
+            end
+            if ok @3:i64 rate(@0.customerTier)
+                if ok @4:i64 num.div(mul(@1,@3),100)
+                    ret ok(rec[Settlement](total=@1,discount=@4))
+                else err @5:str
+                    ret err[Settlement](@5)
+                end
+            else err @6:str
+                ret err[Settlement](@6)
+            end
+            ret err[Settlement]("unreachable")
+        end
+        """;
 
     private static async Task RuntimeExecutesMilestone()
     {

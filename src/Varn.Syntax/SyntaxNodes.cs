@@ -65,6 +65,15 @@ public sealed record IfLetStatementSyntax(
     IReadOnlyList<StatementSyntax> ElseBody,
     SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
 
+public sealed record IfOkStatementSyntax(
+    string Binding,
+    VarnType BindingType,
+    ExpressionSyntax Result,
+    IReadOnlyList<StatementSyntax> ThenBody,
+    string? ErrorBinding,
+    IReadOnlyList<StatementSyntax> ElseBody,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
 public sealed record LoopStatementSyntax(
     string Iterator,
     VarnType IteratorType,
@@ -95,6 +104,15 @@ public sealed record SomeExpressionSyntax(
 
 public sealed record NoneExpressionSyntax(
     VarnType ElementType,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
+public sealed record OkExpressionSyntax(
+    ExpressionSyntax Value,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
+public sealed record ErrExpressionSyntax(
+    VarnType ValueType,
+    ExpressionSyntax Error,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
 public sealed record ListExpressionSyntax(

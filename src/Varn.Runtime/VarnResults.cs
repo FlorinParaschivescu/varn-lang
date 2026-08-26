@@ -13,8 +13,10 @@ public sealed record VarnRunResult(VarnValue? ReturnValue, IReadOnlyList<Diagnos
     public bool IsSuccess => Diagnostics.Count == 0;
 
     /// <summary>
-    /// A successful i64 result is its own process exit code. A successful structured result exits
-    /// 0 and is carried in <see cref="ReturnValue"/> instead; a failed run always exits 1.
+    /// A successful i64 result is its own process exit code. A successful structured result exits 0
+    /// and is carried in <see cref="ReturnValue"/> instead. A program that returns a failed result
+    /// ran correctly but its rule did not hold, so it exits 1 while <see cref="IsSuccess"/> stays
+    /// true; only a rejected or aborted run produces diagnostics.
     /// </summary>
     public int ExitCode
     {
@@ -25,9 +27,18 @@ public sealed record VarnRunResult(VarnValue? ReturnValue, IReadOnlyList<Diagnos
                 return 1;
             }
 
-            return value.Type == VarnType.I64 ? checked((int)value.AsI64()) : 0;
+            if (value.IsResult)
+            {
+                var result = value.AsResult();
+                return result.IsOk ? ExitCodeFor(result.Value) : 1;
+            }
+
+            return ExitCodeFor(value);
         }
     }
+
+    private static int ExitCodeFor(VarnValue value) =>
+        value.Type == VarnType.I64 ? checked((int)value.AsI64()) : 0;
 }
 
 public sealed class VarnRunOptions

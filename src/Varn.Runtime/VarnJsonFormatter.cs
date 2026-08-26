@@ -84,6 +84,16 @@ public static class VarnJsonFormatter
 
     private static VarnValueResponse MapValue(VarnValue value)
     {
+        if (value.IsResult)
+        {
+            var result = value.AsResult();
+            return new VarnValueResponse(
+                value.Type.Name,
+                result.IsOk
+                    ? new VarnResultResponse(true, MapValue(result.Value), null)
+                    : new VarnResultResponse(false, null, MapValue(result.Value)));
+        }
+
         if (value.IsRecord)
         {
             var record = value.AsRecord();

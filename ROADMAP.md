@@ -15,8 +15,8 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | | Stage | Means | Status |
 | --- | --- | --- | --- |
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
-| S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | **Current** |
-| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Not started |
+| S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done |
+| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | **Current** |
 | S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Not started |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
 | S6 | Multi-tenant | Isolated, signed, versioned module processes. Bytecode and a VM only if measurement demands them. Covers M4 and M5. | Not started |
@@ -25,17 +25,31 @@ M4, bytecode and the VM, is deliberately deferred. It is a performance and verif
 
 Distribution (S4) intentionally comes after expressiveness (S2) and proof (S3). Shipping an easy install before a person can write `and` converts curiosity into a bad first impression, and first impressions are spent once.
 
-## Current focus — `Result` values
+## Current focus — measure the thesis
 
-The standard library and `Result` are coupled, so this follows immediately. Integer `div` and `mod` by zero currently escape as host exceptions reported as `VARN4003`, and numeric conversion and string-to-number parsing have nowhere to put an expected failure, so they were deliberately left out of the standard library.
+S2 is complete: a person can write the rule they came to write, and expected failures are values. The next slice measures whether the representation earns its cost instead of assuming it does. The outcome decides whether the rest of this roadmap is aimed correctly, so it comes before distribution.
 
-- [ ] Specify a closed `Result` type with explicit success and failure construction.
-- [ ] Require explicit inspection before extracting either side, in the style of `if let`.
-- [ ] Convert `div` and `mod` by zero from `VARN4003` into an explicit failure value.
-- [ ] Add the failable conversions the standard library is missing: numeric conversion and parsing.
-- [ ] Extend the checker, runtime, module SDK, JSON, and canonical format, with exhaustive tests.
+- [ ] Build a reproducible task set of small structured rules with known-correct answers.
+- [ ] Generate solutions in Varn and in Python-plus-JSON-tool-calls under identical conditions.
+- [ ] Measure **silent-wrong rate**: the run succeeds and returns a plausible but incorrect answer.
+- [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
+- [ ] Measure first-try correctness and correctness after N repairs, and publish the dataset and results.
 
-Exit criterion: an expected, in-domain failure is a value a program must handle, not a diagnostic that aborts the run.
+Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, rewrite the research question around verifiability rather than token cost.
+
+## Completed — `Result` values
+
+- [x] Specify a closed `result[T]` type with explicit success and failure construction.
+- [x] Require explicit inspection before extracting either side, in the style of `if let`.
+- [x] Give in-domain division failure an explicit value rather than a trap.
+- [x] Add the failable conversions the standard library was missing: numeric conversion and parsing.
+- [x] Extend the checker, runtime, module SDK, JSON, and canonical format, with exhaustive tests.
+
+Exit criterion met: `result[T]` carries a success value or a `str` reason, `ok`/`err[T]` construct it, and `if ok ... else err ...` is the only way to read either side (`VARN3045`-`VARN3048`). `main` may return `result[T]`, so a rule that does not hold reports `success` with no diagnostics and its reason in `returnValue`, exiting `1`. A rejected run still reports diagnostics. That distinction — a failed rule is not a broken run — is the point of the slice, and an adapter test pins all three outcomes over the real MCP process.
+
+**Deviation from the plan, recorded deliberately.** This slice was scoped to "convert `div` and `mod` by zero from `VARN4003` into an explicit failure value". It instead added `num.div` and `num.mod` returning `result[i64]` and left total `div`/`mod` trapping. The reason is a distinction the original wording missed: `result` is for *expected, in-domain* failures, while a zero **literal** divisor is a defect, and making every division in every rule unwrap a result taxes the common case to handle a bug. Rust and Swift split the same way. Use `num.div` whenever the divisor is data; the trap remains for defects.
+
+Still open: the failure side is always `str`. A structured failure type would let a host branch on error kind rather than match strings. `result[T]` can later become sugar for `result[T,str]` without breaking existing programs, so this is deferred rather than foreclosed.
 
 ## Completed — standard library
 
@@ -52,18 +66,6 @@ Varn exposed nine callable names and could not express `and`, which blocked both
 Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))`, with no helper function per condition.
 
 Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
-
-## Then — measure the thesis
-
-Once a person can write real rules, measure whether the representation earns its cost instead of assuming it does. The outcome decides whether the rest of this roadmap is aimed correctly.
-
-- [ ] Build a reproducible task set of small structured rules with known-correct answers.
-- [ ] Generate solutions in Varn and in Python-plus-JSON-tool-calls under identical conditions.
-- [ ] Measure **silent-wrong rate**: the run succeeds and returns a plausible but incorrect answer.
-- [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
-- [ ] Measure first-try correctness and correctness after N repairs, and publish the dataset and results.
-
-Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, rewrite the research question around verifiability rather than token cost.
 
 ## Then — make it installable
 
@@ -177,7 +179,7 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 - [x] Add typed lists with bounded traversal.
 - [x] Add records.
 - [x] Add typed host inputs.
-- [ ] Add `Result` values.
+- [x] Add `Result` values.
 - [ ] Add exhaustive success and rejection tests for every feature.
 
 Exit criterion: Varn can express useful deterministic transformations without ambient host access.

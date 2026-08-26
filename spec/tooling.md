@@ -46,7 +46,9 @@ An agent reads `contract` to learn what to feed a program without parsing its so
 
 - `exitCode`: the program result expressed as a process exit code.
 - `steps`: deterministic interpreter steps consumed.
-- `returnValue`: `null` or an object with `type` and `value`. A present optional value nests another typed value object; an absent optional has a `null` value. A list value is an array of recursively typed value objects. A record value is an array of `{"name","value"}` objects in declared field order, where each `value` is itself a typed value object; an array preserves field order without depending on JSON object key ordering.
+- `returnValue`: `null` or an object with `type` and `value`. A present optional value nests another typed value object; an absent optional has a `null` value. A list value is an array of recursively typed value objects. A record value is an array of `{"name","value"}` objects in declared field order, where each `value` is itself a typed value object; an array preserves field order without depending on JSON object key ordering. A result value is an object `{"ok":true,"value":<typed>,"error":null}` or `{"ok":false,"value":null,"error":<typed>}`.
+
+A program that returns a failed `result` **succeeded**: `success` is `true` and `diagnostics` is empty, because the run completed and the rule simply did not hold. Its `exitCode` is `1`, which distinguishes a rule that failed from a run that was rejected. Only diagnostics indicate a rejected or aborted run.
 - `output`: all program output captured as text.
 
 ```powershell

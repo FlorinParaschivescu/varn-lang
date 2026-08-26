@@ -12,6 +12,8 @@ The bootstrap checker recognizes five program-visible types:
 
 Appending `?` creates an optional over `i64`, `f64`, `bool`, or `str`. `some(value)` produces a present optional and `none[type]` produces an absent optional with the same exact type. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
 
+`result[T]` carries either a success value of type `T` or a `str` failure message, where `T` is a scalar or a declared record. `ok(value)` and `err[T](message)` construct it, and `if ok` is the only way to read either side. Optionals represent absence; results represent failure with a reason.
+
 `list[T]` is an immutable homogeneous list whose element type is one of `i64`, `f64`, `bool`, or `str`. Construction is explicit as `list[T](value0,value1)`, including `list[T]()` for an empty list. Lists contain at most 1,024 elements. Nested lists and optional list elements are intentionally unsupported in this slice.
 
 `list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none[T]`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
@@ -51,4 +53,15 @@ String comparison and search are ordinal and case-sensitive, never culture-sensi
 
 `list.contains` charges one step per element examined.
 
-Deliberately absent until `Result` lands: numeric conversion, string-to-number parsing, and any other operation with an expected failure. Integer `div` and `mod` by zero currently surface as the runtime module failure `VARN4003`; `Result` will make that an explicit value.
+These operations return `result[T]` because they can fail in-domain:
+
+| Operation | Signature | Failure messages |
+| --- | --- | --- |
+| `num.div`, `num.mod` | `i64`, `i64` -> `result[i64]` | `divide by zero`, `outside the i64 range` |
+| `num.to_i64` | `f64` -> `result[i64]` | `not a finite number`, `not a whole number`, `outside the i64 range` |
+| `str.to_i64` | `str` -> `result[i64]` | `not an i64` |
+| `str.to_f64` | `str` -> `result[f64]` | `not an f64` |
+
+`num.to_f64` converts `i64` to `f64` and is total, so it returns `f64` directly. Values beyond 2^53 lose precision without failing, which is ordinary IEEE 754 behaviour.
+
+Total `div` and `mod` remain, and still trap on a zero divisor as the module failure `VARN4003`. That is deliberate: a zero literal divisor is a defect, and a defect should abort rather than be silently handled. Use the `num.` forms whenever the divisor is data.
