@@ -156,6 +156,8 @@ public static class VarnParser
             return Current.Kind switch
             {
                 TokenKind.Let => ParseLetStatement(),
+                TokenKind.Var => ParseVarStatement(),
+                TokenKind.Set => ParseSetStatement(),
                 TokenKind.Ret => ParseReturnStatement(),
                 TokenKind.If => ParseIfStatement(),
                 TokenKind.Loop => ParseLoopStatement(),
@@ -171,6 +173,24 @@ public static class VarnParser
             var type = ParseType();
             var value = ParseExpression();
             return new LetStatementSyntax(name, type, value, start);
+        }
+
+        private VarStatementSyntax ParseVarStatement()
+        {
+            var start = Match(TokenKind.Var).Span;
+            var name = Match(TokenKind.Slot).Text;
+            Match(TokenKind.Colon);
+            var type = ParseType();
+            var value = ParseExpression();
+            return new VarStatementSyntax(name, type, value, start);
+        }
+
+        private SetStatementSyntax ParseSetStatement()
+        {
+            var start = Match(TokenKind.Set).Span;
+            var name = Match(TokenKind.Slot).Text;
+            var value = ParseExpression();
+            return new SetStatementSyntax(name, value, start);
         }
 
         private ReturnStatementSyntax ParseReturnStatement()

@@ -40,6 +40,13 @@ public static class Program
             ("bounded loops execute half-open ranges", BoundedLoopsExecuteHalfOpenRanges),
             ("checker verifies the static loop maximum", CheckerVerifiesLoopMaximum),
             ("loop iterator scope does not leak", LoopIteratorScopeDoesNotLeak),
+            ("mutable slots accumulate across bounded loops", MutableSlotsAccumulateAcrossLoops),
+            ("mutable slots persist through selected branches", MutableSlotsPersistThroughSelectedBranches),
+            ("checker rejects assignment to immutable slots", CheckerRejectsImmutableAssignment),
+            ("checker rejects assignment to unknown slots", CheckerRejectsUnknownAssignment),
+            ("checker rejects assignment outside declaration scope", CheckerRejectsOutOfScopeAssignment),
+            ("checker rejects assignment with a different type", CheckerRejectsDifferentAssignmentType),
+            ("checker rejects duplicate mutable slots", CheckerRejectsDuplicateMutableSlot),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -70,8 +77,10 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("if true\nloop @0:i64 from 0 to 1 max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nif true\nloop @1:i64 from 0 to 1 max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.If), "Expected an if token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Loop), "Expected a loop token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Max), "Expected a max token.");
@@ -203,6 +212,139 @@ public static class Program
         return Task.CompletedTask;
     }
 
+    private static async Task MutableSlotsAccumulateAcrossLoops()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                var @0:i64 0
+                loop @1:i64 from 0 to 4 max 4
+                    set @0 add(@0,@1)
+                end
+                ret @0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 6, "Expected the accumulator to return 6.");
+        Assert(result.Steps == 16, $"Expected deterministic step count 16, got {result.Steps}.");
+    }
+
+    private static async Task MutableSlotsPersistThroughSelectedBranches()
+    {
+        const string source = """
+            budget[steps=30]
+            fn main()->i64
+                var @0:i64 1
+                if true
+                    set @0 9
+                end
+                ret @0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 9, "Expected the selected branch to update the outer mutable slot.");
+    }
+
+    private static Task CheckerRejectsImmutableAssignment()
+    {
+        string[] sources =
+        [
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64 0
+                set @0 1
+                ret @0
+            end
+            """,
+            """
+            budget[steps=30]
+            fn update(@0:i64)->i64
+                set @0 1
+                ret @0
+            end
+            fn main()->i64
+                ret update(0)
+            end
+            """,
+            """
+            budget[steps=30]
+            fn main()->i64
+                loop @0:i64 from 0 to 1 max 1
+                    set @0 1
+                end
+                ret 0
+            end
+            """
+        ];
+
+        foreach (var source in sources)
+        {
+            AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3024");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsUnknownAssignment()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                set @0 1
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsOutOfScopeAssignment()
+    {
+        const string source = """
+            budget[steps=30]
+            fn main()->i64
+                if true
+                    var @0:i64 0
+                end
+                set @0 1
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsDifferentAssignmentType()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                var @0:i64 0
+                set @0 true
+                ret @0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3025");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsDuplicateMutableSlot()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                var @0:i64 0
+                let @0:i64 1
+                ret @0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3005");
+        return Task.CompletedTask;
+    }
+
     private static async Task RuntimeExecutesMilestone()
     {
         var output = new StringWriter();
@@ -262,7 +404,9 @@ public static class Program
                     loop @0:i64 from 0 to 1 max 1
                     end
                 end
-                ret 0
+                var @1:i64 0
+                set @1 add(@1,1)
+                ret @1
             end
             """;
         var check = CreateEngine().Check(source);
@@ -272,6 +416,8 @@ public static class Program
         Assert(first == second, "Canonical formatter changed output for the same tree.");
         Assert(first.Contains("I(", StringComparison.Ordinal), "Canonical output omitted the condition.");
         Assert(first.Contains("O(@0:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
+        Assert(first.Contains("M(@1:i64,K[i64:0])", StringComparison.Ordinal), "Canonical output omitted the mutable declaration.");
+        Assert(first.Contains("S(@1,A[add(V[@1];K[i64:1])])", StringComparison.Ordinal), "Canonical output omitted the assignment.");
         return Task.CompletedTask;
     }
 

@@ -13,6 +13,8 @@ public enum TokenKind
     String,
     Fn,
     Let,
+    Var,
+    Set,
     Ret,
     End,
     Cap,

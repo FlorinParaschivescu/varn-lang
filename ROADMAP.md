@@ -2,18 +2,31 @@
 
 Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off in this file as it lands.
 
-## Current focus — explicit mutable slots
+## Current focus — typed optional values
 
-The next vertical slice makes bounded loops useful for deterministic transformations while keeping mutation visible and statically checked.
+The next vertical slice lets programs represent absence without sentinel values or implicit null conversion.
 
-- [ ] Specify distinct mutable declaration and assignment syntax; keep `let` immutable.
-- [ ] Add mutable-slot and assignment nodes to the lexer, parser, and AST.
-- [ ] Reject assignment to immutable, unknown, out-of-scope, or differently typed slots.
-- [ ] Execute scoped mutation with deterministic step accounting.
-- [ ] Extend canonical inspection, examples, and success/rejection tests.
-- [ ] Exercise a bounded-loop accumulator through the MCP adapter.
+- [ ] Specify one explicit optional type and construction syntax.
+- [ ] Add optional type/value nodes to the lexer, parser, AST, and module SDK contract.
+- [ ] Require explicit presence checks before extracting a contained value.
+- [ ] Implement deterministic optional construction, branching, and inspection.
+- [ ] Add exhaustive success, type-mismatch, and unsafe-access rejection tests.
+- [ ] Exercise an optional-producing workflow through the MCP adapter.
 
-Exit criterion: Varn can compute an accumulator across a statically bounded loop, while every invalid mutation is rejected before execution.
+Exit criterion: a checked Varn program can explicitly represent, inspect, and branch over a present or absent typed value without unchecked access.
+
+## Completed — explicit mutable slots
+
+This slice makes bounded loops useful for deterministic transformations while keeping mutation visible and statically checked.
+
+- [x] Specify distinct mutable declaration and assignment syntax; keep `let` immutable.
+- [x] Add mutable-slot and assignment nodes to the lexer, parser, and AST.
+- [x] Reject assignment to immutable, unknown, out-of-scope, or differently typed slots.
+- [x] Execute scoped mutation with deterministic step accounting.
+- [x] Extend canonical inspection, examples, and success/rejection tests.
+- [x] Exercise a bounded-loop accumulator through the MCP adapter.
+
+Exit criterion met: Varn computes an accumulator across a statically bounded loop, while every invalid mutation is rejected before execution.
 
 ## Completed — local AI tool adapter
 
@@ -40,7 +53,7 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 
 - [x] Add `if` with a required `bool` condition.
 - [x] Add statically bounded loops with deterministic step accounting.
-- [ ] Add explicit mutable slots and assignment.
+- [x] Add explicit mutable slots and assignment.
 - [ ] Add optionals, lists, records, and `Result` values one at a time.
 - [ ] Add exhaustive success and rejection tests for every feature.
 

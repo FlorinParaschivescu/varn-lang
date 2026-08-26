@@ -38,6 +38,16 @@ public static class CanonicalFormatter
                 AppendExpression(builder, let.Value);
                 builder.Append(')');
                 break;
+            case VarStatementSyntax variable:
+                builder.Append("M(").Append(variable.Name).Append(':').Append(variable.Type.Name).Append(',');
+                AppendExpression(builder, variable.Value);
+                builder.Append(')');
+                break;
+            case SetStatementSyntax assignment:
+                builder.Append("S(").Append(assignment.Name).Append(',');
+                AppendExpression(builder, assignment.Value);
+                builder.Append(')');
+                break;
             case ExpressionStatementSyntax expressionStatement:
                 builder.Append("E(");
                 AppendExpression(builder, expressionStatement.Expression);
