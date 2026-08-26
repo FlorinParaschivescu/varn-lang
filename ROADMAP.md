@@ -17,7 +17,7 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
 | S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done |
 | S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; model-generated half open |
-| S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Not started |
+| S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Built, unpublished |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
 | S6 | Multi-tenant | Isolated, signed, versioned module processes. Bytecode and a VM only if measurement demands them. Covers M4 and M5. | Not started |
 
@@ -71,12 +71,23 @@ Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-thresho
 
 Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
 
-## Then — make it installable
+## Completed — packaging
 
-- [ ] Publish `Varn.Cli` as a .NET global tool so getting started is one command, not a clone and a build.
-- [ ] Publish `Varn.Runtime` and `Varn.ModuleSdk` as NuGet packages, since embedding is the real use case.
-- [ ] Reduce MCP registration to one command that does not require building this repository first.
-- [ ] Consider a browser playground: Varn is .NET, so a WebAssembly build runs the whole check/inspect/run pipeline client-side with no backend and no abuse surface, which demonstrates the sandboxing claim rather than arguing it.
+- [x] Pack `Varn.Cli` as a .NET global tool, command `varn`.
+- [x] Pack `Varn.ToolHost` as a .NET global tool, command `varn-mcp`, so MCP registration needs no clone or build.
+- [x] Pack `Varn.Runtime`, `Varn.ModuleSdk`, and their dependencies as libraries, since embedding is the real use case.
+- [x] Keep tests, benchmarks, and examples out of the feed by making nothing packable by default.
+- [x] Verify the produced set in `scripts/pack.sh` and in CI, so a project that silently stops being packable fails the build.
+
+Verified end to end at `0.1.0-alpha.1`: the packed `varn` tool installs and runs `examples/order-calculation.varn` with `--input`; the packed `varn-mcp` tool starts protocol-clean; and a fresh console app consuming `Varn.Runtime` and `Varn.Modules.Standard` from the local feed executes a record-and-result program against host input.
+
+A smoke test of that last path caught `Varn.Syntax` failing to pack at all, because its project file was a single self-closing element that the packaging edit did not match. `scripts/pack.sh` now asserts the expected package set so the same class of silent omission fails loudly.
+
+Still open: nothing is published to nuget.org. That needs an owner account, a signing decision, and a release workflow, all of which are outside this repository's automation today.
+
+## Then — a browser playground
+
+- [ ] Varn is .NET, so a WebAssembly build runs the whole check/inspect/run pipeline client-side with no backend and no abuse surface, which demonstrates the sandboxing claim rather than arguing it.
 
 ## Completed — benchmark harness
 
@@ -87,10 +98,10 @@ Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They 
 
 Findings, with the caveats in `bench/README.md` attached:
 
-- On the seven defects written in both languages, Varn is strictly better on three, tied on four, worse on none. Paired silent-wrong count is **Varn 3, Python 5**.
-- The three Varn catches are shape and type errors. The four ties are pure logic errors, which no type system catches, and they are the majority. **Varn's advantage is real and bounded.**
+- On the eight defects written in both languages, Varn is strictly better on three, tied on five, worse on none. Paired silent-wrong count is **Varn 4, Python 6**.
+- The three Varn catches are shape and type errors. The five ties are pure logic errors, which no type system catches, and they are the majority. **Varn's advantage is real and bounded.**
 - Varn costs about **1.36x** the approximate tokens of Python, concentrated in `result` handling; the most failure-heavy task is 1.95x. The earlier prediction that Varn would lose badly on token cost was too pessimistic.
-- One "not expressible" row is not a win: `case-insensitive` is unexpressible only because Varn lacks `str.to_lower`, and this is stated in the report rather than counted as safety.
+- The first revision of this benchmark overstated Varn by showing `case-insensitive` as not expressible, when Varn merely lacked `str.to_lower`. The function was added, the defect is now written in both languages, and it is a tie. Varn's paired silent-wrong count rose from 3 to 4 as a result.
 
 ## Delivered slices
 

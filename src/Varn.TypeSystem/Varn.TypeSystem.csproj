@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.TypeSystem</PackageId>
+    <Description>Varn type, effect, and capability checker.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.ModuleSdk\Varn.ModuleSdk.csproj" />
     <ProjectReference Include="..\Varn.Syntax\Varn.Syntax.csproj" />

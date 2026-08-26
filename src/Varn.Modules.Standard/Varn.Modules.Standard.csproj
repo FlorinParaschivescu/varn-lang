@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.Modules.Standard</PackageId>
+    <Description>Standard Varn modules: arithmetic, boolean, comparison, string, list, and console operations.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.ModuleSdk\Varn.ModuleSdk.csproj" />
   </ItemGroup>

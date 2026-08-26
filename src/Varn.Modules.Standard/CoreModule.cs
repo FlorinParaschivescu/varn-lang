@@ -202,6 +202,12 @@ public sealed class CoreModule : IVarnModule
             new VarnFunctionSignature("str.concat", [VarnType.String, VarnType.String], VarnType.String),
             static (_, arguments, _) => ValueTask.FromResult(
                 VarnValue.From(string.Concat(Text(arguments[0]), Text(arguments[1])))));
+        builder.Function(
+            new VarnFunctionSignature("str.to_lower", [VarnType.String], VarnType.String),
+            static (_, arguments, _) => ValueTask.FromResult(VarnValue.From(Text(arguments[0]).ToLowerInvariant())));
+        builder.Function(
+            new VarnFunctionSignature("str.to_upper", [VarnType.String], VarnType.String),
+            static (_, arguments, _) => ValueTask.FromResult(VarnValue.From(Text(arguments[0]).ToUpperInvariant())));
         RegisterStringPredicate(builder, "str.contains", static (value, other) =>
             value.Contains(other, StringComparison.Ordinal));
         RegisterStringPredicate(builder, "str.starts_with", static (value, other) =>

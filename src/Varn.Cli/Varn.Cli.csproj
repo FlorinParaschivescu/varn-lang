@@ -2,6 +2,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>varn</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>varn</ToolCommandName>
+    <PackageId>Varn.Cli</PackageId>
+    <Description>Varn command-line interface: check, inspect, and run Varn programs with explicit capability, input, and resource policy.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.Modules.Standard\Varn.Modules.Standard.csproj" />

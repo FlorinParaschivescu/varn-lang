@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.Runtime</PackageId>
+    <Description>Varn engine: checking, interpretation, resource budgets, canonical inspection, and JSON results.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.ModuleSdk\Varn.ModuleSdk.csproj" />
     <ProjectReference Include="..\Varn.Parser\Varn.Parser.csproj" />

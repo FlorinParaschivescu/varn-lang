@@ -40,6 +40,7 @@ builder.Services
             "for every input. Input is validated before execution, so a rejected input consumes zero steps. " +
             "Every callable operation: add sub mul div mod min max abs (i64/f64), and or not (bool), " +
             "eq ne (i64/f64/bool/str), lt gt lte gte (i64/f64/str), str.length str.concat str.contains " +
+            "str.to_lower str.to_upper " +
             "str.starts_with str.ends_with, list.length list.get list.contains, io.print. There are no " +
             "operators, so write and(gte(@0,10),eq(@1,\"gold\")) rather than @0>=10 && @1==\"gold\". " +
             "Both operands of and/or are always evaluated. Nothing else exists: do not invent a function. " +

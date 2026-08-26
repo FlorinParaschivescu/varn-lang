@@ -50,6 +50,13 @@
   },
   {
     "task": "order-discount",
+    "variant": "case-insensitive",
+    "language": "varn",
+    "note": "Lowercases the tier, so \"Gold\" is accepted.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "order-discount",
     "variant": "dropped-field",
     "language": "python",
     "note": "Omits a declared output field.",

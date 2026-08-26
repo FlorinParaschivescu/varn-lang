@@ -350,6 +350,68 @@
   },
   {
     "Task": "order-discount",
+    "Variant": "case-insensitive",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 787,
+    "ApproximateTokens": 257,
+    "Cases": [
+      {
+        "Name": "gold",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022total\u0022: 2350,\n          \u0022discount\u0022: 235\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:2350,\u0022discount\u0022:235}}",
+        "Failure": null
+      },
+      {
+        "Name": "silver",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022total\u0022: 1000,\n          \u0022discount\u0022: 50\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:1000,\u0022discount\u0022:50}}",
+        "Failure": null
+      },
+      {
+        "Name": "basic",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022total\u0022: 500,\n          \u0022discount\u0022: 0\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:500,\u0022discount\u0022:0}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-order",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022total\u0022: 0,\n          \u0022discount\u0022: 0\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:0,\u0022discount\u0022:0}}",
+        "Failure": null
+      },
+      {
+        "Name": "truncates-not-rounds",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022total\u0022: 1205,\n          \u0022discount\u0022: 120\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:1205,\u0022discount\u0022:120}}",
+        "Failure": null
+      },
+      {
+        "Name": "unknown-tier",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022unknown tier: platinum\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022unknown tier: platinum\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "tier-is-case-sensitive",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022unknown tier: Gold\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022total\u0022:100,\u0022discount\u0022:10}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "order-discount",
     "Variant": "dropped-field",
     "Language": "python",
     "AuthorIntent": "silent_wrong",

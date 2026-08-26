@@ -10,9 +10,33 @@ This repository contains the .NET 10/C# 14 bootstrap implementation. It runs a d
 source -> lexer -> parser -> AST -> type/effect/capability checker -> interpreter
 ```
 
-## Requirements
+## Install
 
-Install the .NET 10 SDK. The repository pins the tested SDK feature band in `global.json` and uses the modern `Varn.slnx` solution format.
+Varn ships as .NET global tools and as libraries you can embed. Both need the .NET 10 runtime.
+
+```sh
+dotnet tool install -g Varn.Cli        # the varn command
+dotnet tool install -g Varn.ToolHost   # the varn-mcp stdio server
+```
+
+```sh
+dotnet add package Varn.Runtime        # embed the engine
+dotnet add package Varn.ModuleSdk      # author host modules
+```
+
+Embedding takes three lines. The host supplies data separately from the program, so one checked source is reusable:
+
+```csharp
+var engine = new VarnEngine([new CoreModule(), new ConsoleModule()]);
+var result = await engine.RunAsync(source, new VarnRunOptions { Input = json });
+Console.WriteLine(result.ReturnValue?.ToCanonicalString());
+```
+
+> Varn is pre-alpha and versioned `0.1.0-alpha.1`. Package identifiers, the JSON contract, and the module ABI may change.
+
+## Build from source
+
+Install the .NET 10 SDK. The repository pins the tested SDK feature band in `global.json` and uses the modern `Varn.slnx` solution format. `./scripts/pack.sh` produces every package into `artifacts/` and verifies the expected set.
 
 ## Test everything
 
@@ -49,13 +73,13 @@ fn main()->i64 ![console]
 end
 ```
 
-On Windows, use the repository launcher:
+Run it with the installed tool:
 
-```powershell
-./varn.cmd run examples/hello.varn --allow console.write
+```sh
+varn run examples/hello.varn --allow console.write
 ```
 
-Or use the .NET CLI directly on any platform:
+From a clone, use the repository launcher on Windows (`./varn.cmd run ...`) or the .NET CLI on any platform:
 
 ```sh
 dotnet run --project src/Varn.Cli -- run examples/hello.varn --allow console.write
@@ -91,7 +115,7 @@ if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTie
 end
 ```
 
-`add sub mul div mod min max abs` for `i64`/`f64`, `and or not` for `bool`, `eq ne` for every scalar, `lt gt lte gte` for `i64`/`f64`/`str`, `str.length str.concat str.contains str.starts_with str.ends_with`, and `list.length list.get list.contains`. All total, pure, and exactly typed, with no implicit conversions. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
+`add sub mul div mod min max abs` for `i64`/`f64`, `and or not` for `bool`, `eq ne` for every scalar, `lt gt lte gte` for `i64`/`f64`/`str`, `str.length str.concat str.to_lower str.to_upper str.contains str.starts_with str.ends_with`, and `list.length list.get list.contains`. All total, pure, and exactly typed, with no implicit conversions. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
 
 ## Expected failure is a value
 
@@ -214,7 +238,7 @@ This is the intended path for future web access: a network module can expose nar
 dotnet run --project bench/Varn.Bench
 ```
 
-Four structured rule tasks, reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the seven defects written in both languages Varn is strictly better on three, tied on four, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. Varn costs about 1.36x the tokens.
+Four structured rule tasks, reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the eight defects written in both languages Varn is strictly better on three, tied on five, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. Varn costs about 1.36x the tokens, meaning 36 percent more than Python.
 
 No model is called, so this measures mechanism rather than frequency. [bench/README.md](bench/README.md) states what the numbers do and do not show, and where model-generated solutions plug in.
 
@@ -222,6 +246,7 @@ No model is called, so this measures mechanism rather than frequency. [bench/REA
 
 ```text
 Varn.slnx
+scripts/pack.sh           packs every shippable project and verifies the set
 src/
   Varn.Syntax/            AST, source spans, diagnostics, types
   Varn.Lexer/             deterministic tokenization

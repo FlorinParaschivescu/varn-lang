@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.Parser</PackageId>
+    <Description>Varn source-to-AST parser.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.Lexer\Varn.Lexer.csproj" />
     <ProjectReference Include="..\Varn.Syntax\Varn.Syntax.csproj" />

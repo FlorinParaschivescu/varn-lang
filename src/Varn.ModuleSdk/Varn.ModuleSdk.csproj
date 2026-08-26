@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.ModuleSdk</PackageId>
+    <Description>Public contract for authoring Varn host modules and values.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.Syntax\Varn.Syntax.csproj" />
   </ItemGroup>

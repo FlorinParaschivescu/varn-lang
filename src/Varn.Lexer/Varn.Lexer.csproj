@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Varn.Lexer</PackageId>
+    <Description>Deterministic tokenizer for the Varn language.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Varn.Syntax\Varn.Syntax.csproj" />
   </ItemGroup>

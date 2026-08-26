@@ -1557,7 +1557,10 @@ public static class Program
             ("""str.ends_with("gold-tier","tier")""", 1),
             ("""str.ends_with("gold-tier","gold")""", 0),
             ("""eq(str.concat("gold","-tier"),"gold-tier")""", 1),
-            ("""eq(str.length("gold"),4)""", 1)
+            ("""eq(str.length("gold"),4)""", 1),
+            ("""eq(str.to_lower("GoLd"),"gold")""", 1),
+            ("""eq(str.to_upper("gold"),"GOLD")""", 1),
+            ("""eq(str.to_lower("gold"),"GOLD")""", 0)
         ];
 
         foreach (var (expression, expected) in cases)

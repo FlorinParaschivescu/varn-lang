@@ -25,9 +25,9 @@ For every solution the harness classifies the outcome across all cases:
 
 ## What the numbers show
 
-On the seven defects written in **both** languages, Varn is strictly better on three, tied on four, and worse on none. It converts two silently-wrong Python outcomes and one crash into rejections before execution. Paired silent-wrong count: **Varn 3, Python 5**.
+On the eight defects written in **both** languages, Varn is strictly better on three, tied on five, and worse on none. It converts two silently-wrong Python outcomes and one crash into rejections before execution. Paired silent-wrong count: **Varn 4, Python 6**.
 
-The three Varn catches are shape and type errors — a fractional value where the contract says whole, a dropped output field, an unchecked optional. The four ties are pure logic errors: the wrong percentage, a strict comparison on an inclusive boundary, equality where a prefix was meant. **No type system catches those, and a majority of the paired defects are of that kind.** Varn's advantage is real and bounded.
+The three Varn catches are shape and type errors — a fractional value where the contract says whole, a dropped output field, an unchecked optional. The five ties are pure logic errors: the wrong percentage, a strict comparison on an inclusive boundary, equality where a prefix was meant, case-folding a value that should match exactly. **No type system catches those, and they are the majority of the paired defects.** Varn's advantage is real and bounded.
 
 Varn costs about **1.36x** the approximate tokens of Python for the same correct behaviour, concentrated in `result` handling — `order-discount`, the most failure-heavy task, is 1.95x.
 
@@ -39,10 +39,9 @@ Read these before quoting anything above.
 
 **The defect set is hand-picked by Varn's own author**, which is a bias in Varn's favour. It is mitigated, not removed, by including defects Varn does not catch and reporting them in the same table.
 
-**"Not expressible" means two different things**, and only one is a win:
+**"Not expressible" is a win only when the language genuinely prevents the mistake.** One row qualifies: `score-average/floor-division`. Varn has exactly one integer division semantics, so the floor-versus-truncate confusion cannot arise.
 
-- `score-average/floor-division` is genuinely prevented. Varn has exactly one integer division semantics, so the floor-versus-truncate confusion cannot arise.
-- `order-discount/case-insensitive` is **not** a win. Varn simply has no `str.to_lower`. Add that function and the bug becomes expressible. It is counted as "not expressible" in the table and should not be read as a safety property.
+An earlier revision of this benchmark also showed `order-discount/case-insensitive` as not expressible. That was not a safety property, only a missing `str.to_lower`. The function was added and the defect is now written in both languages, where it is silently wrong in both. Treat any future "not expressible" row with the same suspicion: check whether the language prevents the mistake or merely lacks the vocabulary to make it.
 
 **Python runs without a type checker.** That reflects how an agent actually executes generated Python — no mypy in the loop. Running mypy would be a fairer *language* comparison and a less realistic *deployment* comparison. Both framings are defensible; this one is stated rather than hidden.
 

@@ -6,4 +6,29 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>14.0</LangVersion>
   </PropertyGroup>
+
+  <!--
+    Package metadata shared by every shippable project. Nothing is packable by default: a project
+    opts in with <IsPackable>true</IsPackable>, so tests, benchmarks, and examples stay out of the
+    feed without needing to be listed here.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <Version>0.1.0-alpha.1</Version>
+    <Authors>Varn contributors</Authors>
+    <Product>Varn</Product>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/FlorinParaschivescu/varn-lang</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/FlorinParaschivescu/varn-lang</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>varn;language;ai;interpreter;sandbox;capabilities</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
 </Project>

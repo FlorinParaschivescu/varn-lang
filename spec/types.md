@@ -40,6 +40,7 @@ The core module provides every operation below. Each is total, pure, determinist
 | Ordering | `lt`, `gt`, `lte`, `gte` | `i64`, `f64`, `str` | `bool` |
 | String | `str.length` | `str` | `i64` |
 | String | `str.concat` | `str`, `str` | `str` |
+| String | `str.to_lower`, `str.to_upper` | `str` | `str` |
 | String | `str.contains`, `str.starts_with`, `str.ends_with` | `str`, `str` | `bool` |
 | List | `list.length` | `list[T]` | `i64` |
 | List | `list.get` | `list[T]`, `i64` | `T?` |
@@ -47,7 +48,7 @@ The core module provides every operation below. Each is total, pure, determinist
 
 `and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
 
-String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.length` counts UTF-16 code units in the bootstrap runtime.
+String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.length` counts UTF-16 code units in the bootstrap runtime.
 
 `f64` comparison follows IEEE 754 directly: every `eq`, `lt`, `gt`, `lte`, and `gte` involving NaN is `false`, and `ne` is `true`. `i64` and `str` compare by total order.
 
