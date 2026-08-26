@@ -6,91 +6,69 @@ namespace Varn.Runtime;
 
 public static class VarnJsonFormatter
 {
-    private const int SchemaVersion = 1;
+    public const int SchemaVersion = 1;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    public static VarnCheckResponse CreateCheckResponse(VarnCheckResult result) =>
+        new(
+            SchemaVersion,
+            "check",
+            result.IsValid,
+            MapDiagnostics(result.Diagnostics));
+
+    public static VarnInspectionResponse CreateInspectionResponse(VarnCheckResult result, string? canonical) =>
+        new(
+            SchemaVersion,
+            "inspect",
+            result.IsValid,
+            canonical,
+            MapDiagnostics(result.Diagnostics));
+
+    public static VarnRunResponse CreateRunResponse(VarnRunResult result, string output) =>
+        new(
+            SchemaVersion,
+            "run",
+            result.IsSuccess,
+            result.ExitCode,
+            result.Steps,
+            result.ReturnValue is { } value ? MapValue(value) : null,
+            output,
+            MapDiagnostics(result.Diagnostics));
+
+    public static VarnCheckResponse CreateCliErrorResponse(string? command, string message) =>
+        new(
+            SchemaVersion,
+            command ?? "unknown",
+            false,
+            [new VarnDiagnosticResponse("VARN0001", message, new VarnSpanResponse(0, 0))]);
+
     public static string FormatCheck(VarnCheckResult result) =>
-        JsonSerializer.Serialize(
-            new CheckEnvelope(
-                SchemaVersion,
-                "check",
-                result.IsValid,
-                MapDiagnostics(result.Diagnostics)),
-            SerializerOptions);
+        Serialize(CreateCheckResponse(result));
 
     public static string FormatInspection(VarnCheckResult result, string? canonical) =>
-        JsonSerializer.Serialize(
-            new InspectionEnvelope(
-                SchemaVersion,
-                "inspect",
-                result.IsValid,
-                canonical,
-                MapDiagnostics(result.Diagnostics)),
-            SerializerOptions);
+        Serialize(CreateInspectionResponse(result, canonical));
 
     public static string FormatRun(VarnRunResult result, string output) =>
-        JsonSerializer.Serialize(
-            new RunEnvelope(
-                SchemaVersion,
-                "run",
-                result.IsSuccess,
-                result.ExitCode,
-                result.Steps,
-                result.ReturnValue is { } value ? MapValue(value) : null,
-                output,
-                MapDiagnostics(result.Diagnostics)),
-            SerializerOptions);
+        Serialize(CreateRunResponse(result, output));
 
     public static string FormatCliError(string? command, string message) =>
-        JsonSerializer.Serialize(
-            new CheckEnvelope(
-                SchemaVersion,
-                command ?? "unknown",
-                false,
-                [new DiagnosticEnvelope("VARN0001", message, new SpanEnvelope(0, 0))]),
-            SerializerOptions);
+        Serialize(CreateCliErrorResponse(command, message));
 
-    private static IReadOnlyList<DiagnosticEnvelope> MapDiagnostics(IReadOnlyList<Diagnostic> diagnostics) =>
+    private static string Serialize<T>(T response) =>
+        JsonSerializer.Serialize(response, SerializerOptions);
+
+    private static IReadOnlyList<VarnDiagnosticResponse> MapDiagnostics(IReadOnlyList<Diagnostic> diagnostics) =>
         diagnostics.Select(static diagnostic =>
-            new DiagnosticEnvelope(
+            new VarnDiagnosticResponse(
                 diagnostic.Code,
                 diagnostic.Message,
-                new SpanEnvelope(diagnostic.Span.Line, diagnostic.Span.Column)))
+                new VarnSpanResponse(diagnostic.Span.Line, diagnostic.Span.Column)))
             .ToArray();
 
-    private static ValueEnvelope MapValue(VarnValue value) =>
+    private static VarnValueResponse MapValue(VarnValue value) =>
         new(value.Type.Name, value.Value);
-
-    private sealed record CheckEnvelope(
-        int SchemaVersion,
-        string Command,
-        bool Success,
-        IReadOnlyList<DiagnosticEnvelope> Diagnostics);
-
-    private sealed record InspectionEnvelope(
-        int SchemaVersion,
-        string Command,
-        bool Success,
-        string? Canonical,
-        IReadOnlyList<DiagnosticEnvelope> Diagnostics);
-
-    private sealed record RunEnvelope(
-        int SchemaVersion,
-        string Command,
-        bool Success,
-        int ExitCode,
-        long Steps,
-        ValueEnvelope? ReturnValue,
-        string Output,
-        IReadOnlyList<DiagnosticEnvelope> Diagnostics);
-
-    private sealed record DiagnosticEnvelope(string Code, string Message, SpanEnvelope Span);
-
-    private sealed record SpanEnvelope(int Line, int Column);
-
-    private sealed record ValueEnvelope(string Type, object? Value);
 }

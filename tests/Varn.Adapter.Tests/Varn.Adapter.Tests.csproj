@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
+    <ProjectReference Include="..\..\src\Varn.Adapter\Varn.Adapter.csproj" />
+    <ProjectReference Include="..\..\src\Varn.ToolHost\Varn.ToolHost.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

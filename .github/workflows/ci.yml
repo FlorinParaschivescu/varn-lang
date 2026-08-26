@@ -30,8 +30,11 @@ jobs:
       - name: Build
         run: dotnet build Varn.slnx --configuration Release --no-restore --nologo
 
-      - name: Run bootstrap tests
+      - name: Run language and runtime tests
         run: dotnet run --project tests/Varn.Tests --configuration Release --no-build
+
+      - name: Run adapter and MCP protocol tests
+        run: dotnet run --project tests/Varn.Adapter.Tests --configuration Release --no-build
 
       - name: Verify formatting
         run: dotnet format Varn.slnx --verify-no-changes --no-restore --verbosity minimal

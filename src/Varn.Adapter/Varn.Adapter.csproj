@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Varn.Modules.Standard\Varn.Modules.Standard.csproj" />
+    <ProjectReference Include="..\Varn.Runtime\Varn.Runtime.csproj" />
+  </ItemGroup>
+</Project>

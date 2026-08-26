@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-The bootstrap test runner has no third-party packages and can also be run directly:
+This runs 16 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -87,11 +87,29 @@ Add `--json` to any command for a versioned, machine-readable response:
 
 In JSON run mode, program output is captured in the `output` property, so stdout contains one JSON document and can be consumed safely by agents or other tools. See [the tooling contract](spec/tooling.md).
 
+## Use Varn from Codex or another MCP client
+
+Varn includes a local stdio MCP server with structured `varn_check`, `varn_inspect`, and `varn_run` tools. On Windows, build and register it with Codex using:
+
+```powershell
+./scripts/register-codex-mcp.ps1
+```
+
+On Unix-like systems:
+
+```sh
+./scripts/register-codex-mcp.sh
+```
+
+Restart the Codex client after registration and use `/mcp` or the MCP settings page to confirm that `varn` is connected. The registration scripts modify the current user's Codex MCP configuration only when explicitly run.
+
+The adapter accepts source text rather than paths, loads no external assemblies, and requires explicit capability, step, and output ceilings for every execution. See [the adapter contract](spec/adapter.md).
+
 ## How an AI agent uses Varn
 
-An agent with repository shell access can generate a `.varn` file, invoke `check --json`, repair any reported diagnostics, optionally inspect the canonical structure, and invoke `run --json` with an explicit host capability policy. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
+An agent calls `varn_check` with generated source, repairs stable diagnostics, optionally calls `varn_inspect`, then calls `varn_run` only when execution is required. The run request must grant the smallest capability set and supply bounded resources.
 
-The next integration layer is a thin adapter over this JSON contract. It can expose Varn as a Codex skill or MCP tool without coupling the language core to any one AI platform.
+The adapter has been exercised through a real Codex check–repair–run workflow as well as the official MCP C# client. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
 
 ## Modules first
 
@@ -105,7 +123,7 @@ varn run program.varn --module path/to/MyModule.dll --allow my.capability
 
 This is the intended path for future web access: a network module can expose narrow functions such as `net.get` without adding HTTP access to the language core. See [the module contract](spec/modules.md).
 
-> A loaded .NET module is trusted host code and is not sandboxed by Varn. Capability checks control whether Varn programs may call it; they cannot prevent a malicious module assembly from using .NET directly. Only load modules you trust.
+> A loaded .NET module is trusted host code and is not sandboxed by Varn. Capability checks control whether Varn programs may call it; they cannot prevent a malicious module assembly from using .NET directly. Only load modules you trust. The MCP adapter deliberately does not load external assemblies.
 
 ## Repository map
 
@@ -120,21 +138,25 @@ src/
   Varn.Runtime/           engine, interpreter, budgets, inspection, JSON results
   Varn.Modules.Standard/  arithmetic, comparison, and console modules
   Varn.Cli/               check / inspect / run
-tests/Varn.Tests/         dependency-free bootstrap test runner
+  Varn.Adapter/           protocol-neutral AI tool service and host policy
+  Varn.ToolHost/          local MCP stdio server
+tests/
+  Varn.Tests/             dependency-free language/runtime test runner
+  Varn.Adapter.Tests/     adapter policy and MCP protocol test runner
 examples/                 programs and an external module
-spec/                     current language, tooling, and extension contracts
+spec/                     current language, tooling, adapter, and extension contracts
 ```
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; immutable numeric slots; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; and external module loading.
+Implemented now: scalar literals; typed functions; immutable numeric slots; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
 Intentionally deferred: mutation, lists, records, optionals, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
-See [ROADMAP.md](ROADMAP.md) for the proposed sequence. Features should be added one vertical slice at a time, with checker, runtime, CLI, specification, and tests updated together.
+See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 
 ## Status
 
-Varn is pre-alpha research software. Its syntax, JSON contract, and module ABI may change with explicit versioning. Varn is licensed under the [Apache License 2.0](LICENSE).
+Varn is pre-alpha research software. Its syntax, JSON contract, MCP tools, and module ABI may change with explicit versioning. Varn is licensed under the [Apache License 2.0](LICENSE).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
