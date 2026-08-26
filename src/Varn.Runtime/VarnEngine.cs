@@ -191,6 +191,33 @@ public sealed class VarnEngine
                         }
 
                         break;
+                    case EachStatementSyntax each:
+                        var values = (await EvaluateAsync(each.List, frame, cancellationToken).ConfigureAwait(false)).AsList();
+                        if (values.Count > each.MaxIterations)
+                        {
+                            throw new VarnExecutionException(
+                                "VARN4006",
+                                $"List length {values.Count} exceeded each max {each.MaxIterations}.",
+                                each.Span);
+                        }
+
+                        foreach (var value in values)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            ConsumeStep(each.Span);
+                            var iterationFrame = new Dictionary<string, SlotCell>(frame, StringComparer.Ordinal)
+                            {
+                                [each.Iterator] = new SlotCell(value)
+                            };
+                            var eachResult = await ExecuteStatementsAsync(each.Body, iterationFrame, cancellationToken)
+                                .ConfigureAwait(false);
+                            if (eachResult.HasReturn)
+                            {
+                                return eachResult;
+                            }
+                        }
+
+                        break;
                 }
             }
 
@@ -209,10 +236,26 @@ public sealed class VarnEngine
                 SomeExpressionSyntax some => VarnValue.Some(
                     await EvaluateAsync(some.Value, frame, cancellationToken).ConfigureAwait(false)),
                 NoneExpressionSyntax none => VarnValue.None(none.ElementType),
+                ListExpressionSyntax list => await EvaluateListAsync(list, frame, cancellationToken).ConfigureAwait(false),
                 ReferenceExpressionSyntax reference => frame[reference.Name].Value,
                 CallExpressionSyntax call => await InvokeCallAsync(call, frame, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.")
             };
+        }
+
+        private async ValueTask<VarnValue> EvaluateListAsync(
+            ListExpressionSyntax list,
+            IReadOnlyDictionary<string, SlotCell> frame,
+            CancellationToken cancellationToken)
+        {
+            var values = new VarnValue[list.Elements.Count];
+            for (var index = 0; index < list.Elements.Count; index++)
+            {
+                ConsumeStep(list.Elements[index].Span);
+                values[index] = await EvaluateAsync(list.Elements[index], frame, cancellationToken).ConfigureAwait(false);
+            }
+
+            return VarnValue.FromList(list.ElementType, values);
         }
 
         private async ValueTask<VarnValue> InvokeCallAsync(
@@ -230,6 +273,20 @@ public sealed class VarnEngine
             if (_functions.TryGetValue(call.FunctionName, out var function))
             {
                 return await InvokeUserFunctionAsync(function, arguments, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (call.FunctionName == "list.length")
+            {
+                return VarnValue.From((long)arguments[0].AsList().Count);
+            }
+
+            if (call.FunctionName == "list.get")
+            {
+                var values = arguments[0].AsList();
+                var index = arguments[1].AsI64();
+                return index >= 0 && index < values.Count
+                    ? VarnValue.Some(values[(int)index])
+                    : VarnValue.None(arguments[0].Type.ListElementType!);
             }
 
             var moduleFunction = _modules.Resolve(call.FunctionName, arguments.Select(static argument => argument.Type).ToArray())

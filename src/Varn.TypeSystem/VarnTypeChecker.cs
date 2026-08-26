@@ -177,6 +177,9 @@ public sealed class VarnTypeChecker
                 case LoopStatementSyntax loop:
                     CheckLoop(loop, function, symbols);
                     break;
+                case EachStatementSyntax each:
+                    CheckEach(each, function, symbols);
+                    break;
             }
         }
     }
@@ -253,6 +256,42 @@ public sealed class VarnTypeChecker
         CheckStatements(loop.Body, function, loopSymbols);
     }
 
+    private void CheckEach(
+        EachStatementSyntax each,
+        FunctionSyntax function,
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
+    {
+        CheckType(each.IteratorType, each.Span);
+        var listType = CheckExpression(each.List, function, symbols);
+        if (!listType.IsList)
+        {
+            Report("VARN3032", $"An each source must be a list, not {listType}.", each.List.Span);
+        }
+        else if (listType.ListElementType != each.IteratorType)
+        {
+            Report(
+                "VARN3033",
+                $"An each binding of type {each.IteratorType} cannot traverse elements of type {listType.ListElementType}.",
+                each.Span);
+        }
+
+        if (each.MaxIterations < 0 || each.MaxIterations > VarnValue.MaxListElements)
+        {
+            Report(
+                "VARN3034",
+                $"An each max must be between 0 and {VarnValue.MaxListElements}.",
+                each.Span);
+        }
+
+        var eachSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
+        if (!eachSymbols.TryAdd(each.Iterator, new SlotSymbol(each.IteratorType, IsMutable: false)))
+        {
+            Report("VARN3005", $"Slot '{each.Iterator}' is declared more than once.", each.Span);
+        }
+
+        CheckStatements(each.Body, function, eachSymbols);
+    }
+
     private VarnType CheckExpression(
         ExpressionSyntax expression,
         FunctionSyntax containingFunction,
@@ -271,6 +310,29 @@ public sealed class VarnTypeChecker
                 var noneType = VarnType.Optional(none.ElementType);
                 CheckType(noneType, none.Span);
                 return noneType;
+            case ListExpressionSyntax list:
+                CheckType(VarnType.List(list.ElementType), list.Span);
+                if (list.Elements.Count > VarnValue.MaxListElements)
+                {
+                    Report(
+                        "VARN3031",
+                        $"A list literal cannot contain more than {VarnValue.MaxListElements} elements.",
+                        list.Span);
+                }
+
+                foreach (var element in list.Elements)
+                {
+                    var elementType = CheckExpression(element, containingFunction, symbols);
+                    if (elementType != list.ElementType)
+                    {
+                        Report(
+                            "VARN3030",
+                            $"A list[{list.ElementType}] element cannot have type {elementType}.",
+                            element.Span);
+                    }
+                }
+
+                return VarnType.List(list.ElementType);
             case ReferenceExpressionSyntax reference:
                 if (symbols.TryGetValue(reference.Name, out var symbolType))
                 {
@@ -304,6 +366,11 @@ public sealed class VarnTypeChecker
             }
 
             return target.ReturnType;
+        }
+
+        if (call.FunctionName is "list.length" or "list.get")
+        {
+            return CheckListCall(call, argumentTypes);
         }
 
         var candidates = _modules.Find(call.FunctionName);
@@ -340,6 +407,34 @@ public sealed class VarnTypeChecker
         return signature.ReturnType;
     }
 
+    private VarnType CheckListCall(CallExpressionSyntax call, IReadOnlyList<VarnType> argumentTypes)
+    {
+        var expectedCount = call.FunctionName == "list.length" ? 1 : 2;
+        if (argumentTypes.Count != expectedCount)
+        {
+            Report("VARN3014", $"Call '{call.FunctionName}' expects {expectedCount} arguments, got {argumentTypes.Count}.", call.Span);
+            return VarnType.Null;
+        }
+
+        if (!argumentTypes[0].IsList)
+        {
+            Report("VARN3035", $"Argument 0 of '{call.FunctionName}' must be a list, got {argumentTypes[0]}.", call.Arguments[0].Span);
+            return VarnType.Null;
+        }
+
+        if (call.FunctionName == "list.length")
+        {
+            return VarnType.I64;
+        }
+
+        if (argumentTypes[1] != VarnType.I64)
+        {
+            Report("VARN3015", $"Argument 1 of 'list.get' expects i64, got {argumentTypes[1]}.", call.Arguments[1].Span);
+        }
+
+        return VarnType.Optional(argumentTypes[0].ListElementType!);
+    }
+
     private void ValidateArguments(
         CallExpressionSyntax call,
         IReadOnlyList<VarnType> actual,
@@ -370,6 +465,18 @@ public sealed class VarnTypeChecker
 
     private void CheckType(VarnType type, SourceSpan span)
     {
+        if (type.IsList)
+        {
+            var elementType = type.ListElementType!;
+            if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
+                elementType != VarnType.Bool && elementType != VarnType.String)
+            {
+                Report("VARN3029", $"List element type '{elementType}' is not supported.", span);
+            }
+
+            return;
+        }
+
         if (type.IsOptional)
         {
             var elementType = type.OptionalElementType!;

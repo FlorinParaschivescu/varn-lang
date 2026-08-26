@@ -55,6 +55,10 @@ builder.Function(
 
 `VarnValue.IsSome` tests presence and `AsOptionalValue()` extracts a present value in trusted host code. The SDK factories reject `null`, `any`, and nested optional element types. Varn programs do not receive an unchecked extraction function; they use `if let`.
 
+## List values
+
+Module signatures use `VarnType.List(elementType)`. Trusted handlers construct immutable values with `VarnValue.FromList(elementType, values)` and read them through `AsList()`. The factory requires exact homogeneous scalar values and enforces the 1,024-element runtime limit. Modules should not invoke the public value constructor to bypass these invariants.
+
 ## Security boundary
 
 An `IVarnModule` assembly executes as trusted .NET host code. Varn gates calls into it, but cannot stop malicious initialization or handler code from using ambient .NET APIs. Do not load untrusted assemblies.

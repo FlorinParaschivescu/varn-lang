@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 33 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 45 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -113,9 +113,8 @@ The adapter has been exercised through real Codex check–repair–inspect–run
 
 ## Practical test readiness
 
-- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, and module/API contract experiments.
-- After typed lists: small bounded data-transformation benchmarks against other languages.
-- After records and `Result`: practical structured workflows with explicit failure handling.
+- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, and small bounded typed-list transformations.
+- After records and `Result`: practical structured workflows with explicit data and failure contracts.
 - After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
 - After process isolation: community execution of modules that are not already trusted host code.
 
@@ -123,7 +122,7 @@ The current tests are real end-to-end protocol tests, but Varn remains too small
 
 ## Modules first
 
-Language primitives are not hard-wired into the interpreter. `add`, `eq`, and `io.print` are typed functions registered by standard modules through `Varn.ModuleSdk`. A module supplies a stable name, typed functions, and the explicit effect and capability required by each effectful function.
+Extensible operations such as `add`, `eq`, and `io.print` are typed functions registered by standard modules through `Varn.ModuleSdk`; only small pure structural operations such as safe list access live in the language runtime. A module supplies a stable name, typed functions, and the explicit effect and capability required by each effectful function.
 
 Modules can be embedded with `engine.AddModule(...)` or explicitly loaded by the CLI:
 
@@ -159,9 +158,9 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
-Intentionally deferred: lists, records, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: records, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 

@@ -20,6 +20,8 @@ public static class VarnLexer
             ["if"] = TokenKind.If,
             ["else"] = TokenKind.Else,
             ["loop"] = TokenKind.Loop,
+            ["each"] = TokenKind.Each,
+            ["in"] = TokenKind.In,
             ["from"] = TokenKind.From,
             ["to"] = TokenKind.To,
             ["max"] = TokenKind.Max,
@@ -27,7 +29,8 @@ public static class VarnLexer
             ["false"] = TokenKind.False,
             ["null"] = TokenKind.Null,
             ["some"] = TokenKind.Some,
-            ["none"] = TokenKind.None
+            ["none"] = TokenKind.None,
+            ["list"] = TokenKind.List
         };
 
     public static LexResult Lex(string source)
