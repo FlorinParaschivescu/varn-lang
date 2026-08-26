@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Varn.Lexer;
 using Varn.ModuleSdk;
 using Varn.Modules.Standard;
@@ -43,7 +44,9 @@ public static class Program
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
             ("custom modules can be injected", CustomModuleCanBeInjected),
-            ("canonical inspection is deterministic", CanonicalInspectionIsDeterministic)
+            ("canonical inspection is deterministic", CanonicalInspectionIsDeterministic),
+            ("JSON check responses have a stable schema", JsonCheckHasStableSchema),
+            ("JSON run responses capture output and result", JsonRunCapturesOutputAndResult)
         };
 
         var failures = 0;
@@ -270,6 +273,51 @@ public static class Program
         Assert(first.Contains("I(", StringComparison.Ordinal), "Canonical output omitted the condition.");
         Assert(first.Contains("O(@0:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
         return Task.CompletedTask;
+    }
+
+    private static Task JsonCheckHasStableSchema()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                ret true
+            end
+            """;
+        var json = VarnJsonFormatter.FormatCheck(CreateEngine().Check(source));
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert(root.GetProperty("schemaVersion").GetInt32() == 1, "Expected JSON schema version 1.");
+        Assert(root.GetProperty("command").GetString() == "check", "Expected a check response.");
+        Assert(!root.GetProperty("success").GetBoolean(), "Expected the invalid program to fail checking.");
+        var diagnostic = root.GetProperty("diagnostics").EnumerateArray()
+            .Single(item => item.GetProperty("code").GetString() == "VARN3008");
+        Assert(diagnostic.GetProperty("span").GetProperty("line").GetInt32() > 0, "Expected a source line.");
+        return Task.CompletedTask;
+    }
+
+    private static async Task JsonRunCapturesOutputAndResult()
+    {
+        var output = new StringWriter();
+        var result = await CreateEngine().RunAsync(
+            HelloProgram,
+            new VarnRunOptions
+            {
+                AllowedCapabilities = new HashSet<string>(StringComparer.Ordinal) { ConsoleModule.WriteCapability },
+                Output = output
+            }).ConfigureAwait(false);
+        var json = VarnJsonFormatter.FormatRun(result, output.ToString());
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert(root.GetProperty("schemaVersion").GetInt32() == 1, "Expected JSON schema version 1.");
+        Assert(root.GetProperty("command").GetString() == "run", "Expected a run response.");
+        Assert(root.GetProperty("success").GetBoolean(), "Expected a successful run response.");
+        Assert(root.GetProperty("exitCode").GetInt32() == 0, "Expected exit code 0.");
+        Assert(root.GetProperty("steps").GetInt64() > 0, "Expected a positive step count.");
+        var returnValue = root.GetProperty("returnValue");
+        Assert(returnValue.GetProperty("type").GetString() == "i64", "Expected an i64 return type.");
+        Assert(returnValue.GetProperty("value").GetInt64() == 0, "Expected return value 0.");
+        Assert(root.GetProperty("output").GetString()?.Trim() == "30", "Expected captured output 30.");
+        Assert(root.GetProperty("diagnostics").GetArrayLength() == 0, "Expected no run diagnostics.");
     }
 
     private static VarnEngine CreateEngine() => new([new CoreModule(), new ConsoleModule()]);

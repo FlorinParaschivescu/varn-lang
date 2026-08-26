@@ -77,11 +77,21 @@ The program must declare `console.write`; the host must independently grant it w
 - `inspect` emits a deterministic structural projection of the validated AST.
 - `run` validates, applies host policy and resource limits, then interprets `main`.
 
+Add `--json` to any command for a versioned, machine-readable response:
+
+```powershell
+./varn.cmd check examples/hello.varn --json
+./varn.cmd inspect examples/control-flow.varn --json
+./varn.cmd run examples/hello.varn --allow console.write --json
+```
+
+In JSON run mode, program output is captured in the `output` property, so stdout contains one JSON document and can be consumed safely by agents or other tools. See [the tooling contract](spec/tooling.md).
+
 ## How an AI agent uses Varn
 
-Today, an agent with repository shell access can generate a `.varn` file and invoke the same `check`, `inspect`, and `run` commands. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
+An agent with repository shell access can generate a `.varn` file, invoke `check --json`, repair any reported diagnostics, optionally inspect the canonical structure, and invoke `run --json` with an explicit host capability policy. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
 
-The planned deeper integration is a thin tool adapter that accepts structured source, runs Varn with an explicit host policy, and returns structured diagnostics/results. That can later be exposed as a Codex skill or MCP tool without changing the language core.
+The next integration layer is a thin adapter over this JSON contract. It can expose Varn as a Codex skill or MCP tool without coupling the language core to any one AI platform.
 
 ## Modules first
 
@@ -107,24 +117,24 @@ src/
   Varn.Parser/            source to AST
   Varn.ModuleSdk/         public module contract and values
   Varn.TypeSystem/        types, effects, and capability validation
-  Varn.Runtime/           engine, interpreter, budgets, inspection
+  Varn.Runtime/           engine, interpreter, budgets, inspection, JSON results
   Varn.Modules.Standard/  arithmetic, comparison, and console modules
   Varn.Cli/               check / inspect / run
 tests/Varn.Tests/         dependency-free bootstrap test runner
 examples/                 programs and an external module
-spec/                     current language and extension contracts
+spec/                     current language, tooling, and extension contracts
 ```
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; immutable numeric slots; user and module calls; arithmetic and comparisons; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; and external module loading.
+Implemented now: scalar literals; typed functions; immutable numeric slots; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; and external module loading.
 
-Intentionally deferred: mutation, conditionals, bounded loops, lists, records, optionals, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: mutation, lists, records, optionals, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the proposed sequence. Features should be added one vertical slice at a time, with checker, runtime, CLI, specification, and tests updated together.
 
 ## Status
 
-Varn is pre-alpha research software. Its syntax and module ABI will change. The repository does not yet include a license; one must be selected before accepting outside contributions or publishing a release.
+Varn is pre-alpha research software. Its syntax, JSON contract, and module ABI may change with explicit versioning. The repository does not yet include a license; one must be selected before accepting outside contributions or publishing a release.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.

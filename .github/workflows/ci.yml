@@ -42,6 +42,16 @@ jobs:
           dotnet run --project src/Varn.Cli --configuration Release --no-build -- inspect examples/hello.varn
           dotnet run --project src/Varn.Cli --configuration Release --no-build -- run examples/hello.varn --allow console.write
 
+      - name: Smoke-test JSON transport
+        shell: pwsh
+        run: |
+          $check = dotnet run --project src/Varn.Cli --configuration Release --no-build -- check examples/hello.varn --json | ConvertFrom-Json
+          $inspect = dotnet run --project src/Varn.Cli --configuration Release --no-build -- inspect examples/control-flow.varn --json | ConvertFrom-Json
+          $run = dotnet run --project src/Varn.Cli --configuration Release --no-build -- run examples/hello.varn --allow console.write --json | ConvertFrom-Json
+          if ($check.schemaVersion -ne 1 -or -not $check.success) { throw 'JSON check failed.' }
+          if ($inspect.schemaVersion -ne 1 -or [string]::IsNullOrWhiteSpace($inspect.canonical)) { throw 'JSON inspection failed.' }
+          if ($run.schemaVersion -ne 1 -or -not $run.success -or $run.output.Trim() -ne '30') { throw 'JSON run failed.' }
+
       - name: Smoke-test external module loading
         run: >-
           dotnet run --project src/Varn.Cli --configuration Release --no-build --

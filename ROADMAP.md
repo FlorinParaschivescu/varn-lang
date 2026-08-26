@@ -4,20 +4,20 @@ Varn should advance through small, measurable vertical slices. Each milestone in
 
 ## M0 — Repository ready for collaboration
 
-- Select an open-source license and contribution policy.
-- Add GitHub CI for .NET 10 build, tests, and formatting.
-- Add issue and pull-request templates.
-- Publish the architectural invariants in an initial design record.
+- [ ] Select an open-source license and contribution policy.
+- [x] Add GitHub CI for .NET 10 build, tests, and formatting.
+- [x] Add issue and pull-request templates.
+- [x] Publish the architectural invariants in an initial design record.
 
 Exit criterion: a clean clone can run one documented command and receive the same result locally and in CI.
 
 ## M1 — Complete the small structured language
 
-- Add `if` with a required `bool` condition.
-- Add statically bounded loops with deterministic step accounting.
-- Add explicit mutable slots and assignment.
-- Add optionals, lists, records, and `Result` values one at a time.
-- Add exhaustive success and rejection tests for every feature.
+- [x] Add `if` with a required `bool` condition.
+- [x] Add statically bounded loops with deterministic step accounting.
+- [ ] Add explicit mutable slots and assignment.
+- [ ] Add optionals, lists, records, and `Result` values one at a time.
+- [ ] Add exhaustive success and rejection tests for every feature.
 
 Exit criterion: Varn can express useful deterministic transformations without ambient host access.
 
@@ -64,10 +64,10 @@ Exit criterion: integrations can be distributed without expanding the trusted la
 
 In parallel with M1–M3:
 
-1. Keep the CLI stable and machine-readable.
-2. Add structured JSON diagnostics and execution results.
-3. Build a thin tool adapter around `check`, `inspect`, and `run`.
-4. Package authoring guidance as a Codex skill after the syntax stabilizes.
-5. Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares token cost and success rate.
+1. [x] Keep the CLI stable and machine-readable.
+2. [x] Add structured JSON diagnostics and execution results.
+3. [ ] Build a thin tool adapter around `check`, `inspect`, and `run`.
+4. [ ] Package authoring guidance as a Codex skill after the syntax stabilizes.
+5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares token cost and success rate.
 
 This lets AI agents use Varn early while keeping the language experiment measurable.
