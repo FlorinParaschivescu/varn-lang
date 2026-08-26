@@ -18,7 +18,8 @@ public static class VarnJsonFormatter
             SchemaVersion,
             "check",
             result.IsValid,
-            MapDiagnostics(result.Diagnostics));
+            MapDiagnostics(result.Diagnostics),
+            result.IsValid ? MapContract(result.Program) : null);
 
     public static VarnInspectionResponse CreateInspectionResponse(VarnCheckResult result, string? canonical) =>
         new(
@@ -60,6 +61,18 @@ public static class VarnJsonFormatter
 
     private static string Serialize<T>(T response) =>
         JsonSerializer.Serialize(response, SerializerOptions);
+
+    private static VarnContractResponse MapContract(ProgramSyntax program)
+    {
+        var input = VarnProgramContract.InputShape(program);
+        return new VarnContractResponse(
+            input is null
+                ? null
+                : new VarnRecordContractResponse(
+                    input.Name,
+                    [.. input.Fields.Select(static field => new VarnFieldResponse(field.Name, field.Type.Name))]),
+            VarnProgramContract.ResultType(program)?.Name ?? VarnType.I64.Name);
+    }
 
     private static IReadOnlyList<VarnDiagnosticResponse> MapDiagnostics(IReadOnlyList<Diagnostic> diagnostics) =>
         diagnostics.Select(static diagnostic =>

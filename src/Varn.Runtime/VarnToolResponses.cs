@@ -19,11 +19,24 @@ public sealed record VarnRecordFieldResponse(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("value")] VarnValueResponse Value);
 
+public sealed record VarnFieldResponse(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("type")] string Type);
+
+public sealed record VarnRecordContractResponse(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("fields")] IReadOnlyList<VarnFieldResponse> Fields);
+
+public sealed record VarnContractResponse(
+    [property: JsonPropertyName("input")] VarnRecordContractResponse? Input,
+    [property: JsonPropertyName("result")] string Result);
+
 public sealed record VarnCheckResponse(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
     [property: JsonPropertyName("command")] string Command,
     [property: JsonPropertyName("success")] bool Success,
-    [property: JsonPropertyName("diagnostics")] IReadOnlyList<VarnDiagnosticResponse> Diagnostics);
+    [property: JsonPropertyName("diagnostics")] IReadOnlyList<VarnDiagnosticResponse> Diagnostics,
+    [property: JsonPropertyName("contract")] VarnContractResponse? Contract = null);
 
 public sealed record VarnInspectionResponse(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,

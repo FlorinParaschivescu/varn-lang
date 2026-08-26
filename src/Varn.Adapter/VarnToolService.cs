@@ -52,6 +52,7 @@ public sealed class VarnToolService
         IReadOnlyList<string>? allowedCapabilities,
         long maxSteps,
         int maxOutputCharacters,
+        string? input = null,
         CancellationToken cancellationToken = default)
     {
         if (ValidateSource(source) is { } sourceFailure)
@@ -85,7 +86,8 @@ public sealed class VarnToolService
             {
                 AllowedCapabilities = allowedCapabilities!.ToHashSet(StringComparer.Ordinal),
                 MaxSteps = maxSteps,
-                Output = output
+                Output = output,
+                Input = input
             },
             cancellationToken).ConfigureAwait(false);
 

@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 59 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 69 language/runtime tests and 9 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -81,17 +81,42 @@ end
 
 A `rec` declaration is closed and immutable. Construction must set every declared field exactly once, missing, extra, duplicate, and mistyped fields each get their own diagnostic, and `@0.items` is the only way to read a field. Declaration order is the only field order the runtime, canonical projection, and JSON results use. See [examples/typed-records.varn](examples/typed-records.varn).
 
+## Host input: one program, many inputs
+
+Give `main` a record parameter and the data arrives from the host instead of the source:
+
+```varn
+fn main(@0:Order)->Settlement
+```
+
+```powershell
+./varn.cmd check examples/order-calculation.varn --json
+./varn.cmd run examples/order-calculation.varn --input examples/order-gold.json --json
+./varn.cmd run examples/order-calculation.varn --input examples/order-basic.json --json
+```
+
+The gold input returns `{total:2350, discount:235}` and the basic input returns `{total:140, discount:0}` from the same unchanged, already-checked program. No string interpolation, no regeneration per input.
+
+`check --json` reports the contract a host must satisfy:
+
+```json
+"contract":{"input":{"type":"Order","fields":[{"name":"items","type":"list[i64]"},{"name":"customerTier","type":"str"}]},"result":"Settlement"}
+```
+
+Input is bound and validated before execution begins, so a rejected input consumes zero steps and never partially runs. Binding is exact: no coercion, no defaults, no extra keys, and `1200.5` is rejected for an `i64` rather than truncated. See [the tooling contract](spec/tooling.md).
+
 ## CLI
 
 ```powershell
 ./varn.cmd check examples/hello.varn
 ./varn.cmd inspect examples/hello.varn
 ./varn.cmd run examples/hello.varn --allow console.write
+./varn.cmd run examples/order-calculation.varn --input examples/order-gold.json
 ```
 
 - `check` parses and validates without executing.
 - `inspect` emits a deterministic structural projection of the validated AST.
-- `run` validates, applies host policy and resource limits, then interprets `main`.
+- `run` validates, binds any `--input` to the declared record, applies host policy and resource limits, then interprets `main`.
 
 Add `--json` to any command for a versioned, machine-readable response:
 
@@ -129,8 +154,8 @@ The adapter has been exercised through real Codex check–repair–inspect–run
 
 ## Practical test readiness
 
-- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, small bounded typed-list transformations, and closed structured records.
-- After typed host inputs and `Result`: one checked program reused across many host-supplied inputs, with explicit failure contracts.
+- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, small bounded typed-list transformations, closed structured records, and one verified program reused across many structured host inputs.
+- After `Result`: explicit failure contracts instead of diagnostics for expected, in-domain failures.
 - After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
 - After process isolation: community execution of modules that are not already trusted host code.
 
@@ -174,9 +199,9 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
-Intentionally deferred: `Result`, structured host inputs, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 

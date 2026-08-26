@@ -106,13 +106,17 @@ public static class Program
     {
         using var capturedOutput = parsedOptions.Json ? new StringWriter(CultureInfo.InvariantCulture) : null;
         var output = (TextWriter?)capturedOutput ?? Console.Out;
+        var input = parsedOptions.InputPath is null
+            ? null
+            : await ReadInputAsync(parsedOptions.InputPath).ConfigureAwait(false);
         var result = await engine.RunAsync(
             source,
             new VarnRunOptions
             {
                 AllowedCapabilities = parsedOptions.AllowedCapabilities,
                 MaxSteps = parsedOptions.MaxSteps,
-                Output = output
+                Output = output,
+                Input = input
             }).ConfigureAwait(false);
 
         if (parsedOptions.Json)
@@ -127,11 +131,22 @@ public static class Program
         return result.IsSuccess ? result.ExitCode : 1;
     }
 
+    private static async Task<string> ReadInputAsync(string path)
+    {
+        if (!File.Exists(path))
+        {
+            throw new CliException($"Input file '{path}' does not exist.");
+        }
+
+        return await File.ReadAllTextAsync(path).ConfigureAwait(false);
+    }
+
     private static CliOptions ParseOptions(IReadOnlyList<string> args)
     {
         var allowedCapabilities = new HashSet<string>(StringComparer.Ordinal);
         var modulePaths = new List<string>();
         var maxSteps = 100_000L;
+        string? inputPath = null;
         var json = false;
         for (var index = 0; index < args.Count; index++)
         {
@@ -161,6 +176,11 @@ public static class Program
                 case "--module":
                     modulePaths.Add(Path.GetFullPath(value));
                     break;
+                case "--input" when inputPath is null:
+                    inputPath = Path.GetFullPath(value);
+                    break;
+                case "--input":
+                    throw new CliException("Option '--input' may be supplied only once.");
                 case "--max-steps" when long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0:
                     maxSteps = parsed;
                     break;
@@ -171,7 +191,7 @@ public static class Program
             }
         }
 
-        return new CliOptions(allowedCapabilities, modulePaths, maxSteps, json);
+        return new CliOptions(allowedCapabilities, modulePaths, maxSteps, inputPath, json);
     }
 
     private static IReadOnlyList<IVarnModule> LoadModules(string path)
@@ -221,13 +241,15 @@ public static class Program
         Console.Error.WriteLine("Varn v0.1 bootstrap");
         Console.Error.WriteLine("usage: varn check <program.varn> [--module <assembly>] [--json]");
         Console.Error.WriteLine("       varn inspect <program.varn> [--module <assembly>] [--json]");
-        Console.Error.WriteLine("       varn run <program.varn> [--allow <capability>] [--max-steps <count>] [--module <assembly>] [--json]");
+        Console.Error.WriteLine("       varn run <program.varn> [--input <input.json>] [--allow <capability>]");
+        Console.Error.WriteLine("                                [--max-steps <count>] [--module <assembly>] [--json]");
     }
 
     private sealed record CliOptions(
         ISet<string> AllowedCapabilities,
         IReadOnlyList<string> ModulePaths,
         long MaxSteps,
+        string? InputPath,
         bool Json);
 
     private sealed class CliException(string message) : Exception(message);

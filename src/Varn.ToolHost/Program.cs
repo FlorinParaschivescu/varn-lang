@@ -33,7 +33,11 @@ builder.Services
             "list.get(@0,1) for an i64?, and each @1:i64 in @0 max 3 ... end for bounded traversal. " +
             "Declare a closed record at program level with rec Order(items:list[i64],tier:str), construct it as " +
             "rec[Order](items=list[i64](1,2),tier=\"gold\") with every declared field set exactly once, and " +
-            "read a field with @0.items. Records are immutable and have no dynamic property access.";
+            "read a field with @0.items. Records are immutable and have no dynamic property access. " +
+            "To accept host data, give main one record parameter: fn main(@0:Order)->Settlement. Never write the " +
+            "data into the source and never regenerate the program per input. varn_check reports that contract as " +
+            "contract.input; send matching JSON as the varn_run input argument and the same program runs unchanged " +
+            "for every input. Input is validated before execution, so a rejected input consumes zero steps.";
     })
     .WithStdioServerTransport()
     .WithTools<VarnMcpTools>();

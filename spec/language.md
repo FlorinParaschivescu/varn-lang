@@ -4,7 +4,21 @@ This document describes the implemented bootstrap subset, not the full language 
 
 ## Program contract
 
-A program contains zero or more capability declarations, exactly one positive step budget, zero or more record declarations, and one or more functions. It must define `fn main()->i64` with no parameters.
+A program contains zero or more capability declarations, exactly one positive step budget, zero or more record declarations, and one or more functions. It must define an entry point named `main`.
+
+## Entry point
+
+`main` takes at most one parameter and returns either `i64` or a declared record:
+
+```varn
+fn main(@0:Order)->Settlement
+```
+
+The parameter, when present, is the program's **input contract**: its type must be a declared record, and the host supplies its value separately from the source. The return type is the program's **result contract**. `VARN3004` reports too many parameters, a non-record input, or a return type that is neither `i64` nor a declared record.
+
+This is what makes a program reusable. The data never appears in the source, so one checked program runs unchanged across many inputs, with no string interpolation and no regeneration.
+
+A successful `i64` result remains the process exit code. A successful record result exits `0` and is carried in the structured `returnValue` instead.
 
 ```varn
 cap[console.write]

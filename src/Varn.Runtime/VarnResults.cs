@@ -12,9 +12,22 @@ public sealed record VarnRunResult(VarnValue? ReturnValue, IReadOnlyList<Diagnos
 {
     public bool IsSuccess => Diagnostics.Count == 0;
 
-    public int ExitCode => IsSuccess && ReturnValue is { } value && value.Type == VarnType.I64
-        ? checked((int)value.AsI64())
-        : 1;
+    /// <summary>
+    /// A successful i64 result is its own process exit code. A successful structured result exits
+    /// 0 and is carried in <see cref="ReturnValue"/> instead; a failed run always exits 1.
+    /// </summary>
+    public int ExitCode
+    {
+        get
+        {
+            if (!IsSuccess || ReturnValue is not { } value)
+            {
+                return 1;
+            }
+
+            return value.Type == VarnType.I64 ? checked((int)value.AsI64()) : 0;
+        }
+    }
 }
 
 public sealed class VarnRunOptions
@@ -24,4 +37,11 @@ public sealed class VarnRunOptions
     public long MaxSteps { get; init; } = 100_000;
 
     public TextWriter Output { get; init; } = Console.Out;
+
+    /// <summary>
+    /// Host-supplied JSON bound to the record the program declares as its input, or <c>null</c>
+    /// when the program declares none. The host supplies data here rather than in the source, so
+    /// one checked program stays reusable across many inputs.
+    /// </summary>
+    public string? Input { get; init; }
 }

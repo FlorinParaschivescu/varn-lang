@@ -16,7 +16,7 @@ public sealed class VarnMcpTools(VarnToolService service)
         Destructive = false,
         Idempotent = true,
         OpenWorld = false)]
-    [Description("Parse and statically validate Varn source without executing it.")]
+    [Description("Parse and statically validate Varn source without executing it, and report the structured input and result contract its entry point declares.")]
     public VarnCheckResponse Check(
         [Description("Complete Varn program source to validate. Include budget[steps=...] and at least one fn ... end block.")] string source) =>
         service.Check(source);
@@ -42,12 +42,13 @@ public sealed class VarnMcpTools(VarnToolService service)
         Destructive = false,
         Idempotent = false,
         OpenWorld = false)]
-    [Description("Validate and execute Varn source with explicit host capability and resource ceilings.")]
+    [Description("Validate and execute Varn source with explicit host capability and resource ceilings, optionally against structured host input.")]
     public ValueTask<VarnRunResponse> RunAsync(
         [Description("Complete checked Varn program source to execute.")] string source,
         [Description("Exact host capabilities to grant. Pass an empty array to grant none.")] string[] allowedCapabilities,
         [Description("Positive execution step ceiling, at most 1000000.")] long maxSteps,
         [Description("Positive captured-output character ceiling, at most 1000000.")] int maxOutputCharacters,
-        CancellationToken cancellationToken) =>
-        service.RunAsync(source, allowedCapabilities, maxSteps, maxOutputCharacters, cancellationToken);
+        CancellationToken cancellationToken,
+        [Description("JSON object matching the input contract varn_check reports, or omit it when the program declares no input. Supply data here instead of writing it into the source, so one program stays reusable.")] string? input = null) =>
+        service.RunAsync(source, allowedCapabilities, maxSteps, maxOutputCharacters, input, cancellationToken);
 }

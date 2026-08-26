@@ -11,7 +11,7 @@ Every response contains:
 - `schemaVersion`: integer contract version.
 - `command`: `check`, `inspect`, `run`, or `unknown` for an argument error before a command is recognized.
 - `success`: whether the requested operation succeeded.
-- `diagnostics`: an array of diagnostics. Each item contains a stable `code`, a human-readable `message`, and a one-based source `span` with `line` and `column`. CLI argument errors use `VARN0001` and the sentinel span `0:0`.
+- `diagnostics`: an array of diagnostics. Each item contains a stable `code`, a human-readable `message`, and a one-based source `span` with `line` and `column`. CLI argument errors use `VARN0001` and the sentinel span `0:0`. Host-boundary diagnostics, including every input-binding code, use the same sentinel span.
 
 The process exit status remains meaningful: `0` means success, `1` means the Varn program was rejected or failed, and `2` means command-line usage or host I/O failed. A successful `run` returns the program's `i64` result as its process exit code.
 
@@ -22,8 +22,15 @@ The process exit status remains meaningful: `0` means success, `1` means the Var
 ```
 
 ```json
-{"schemaVersion":1,"command":"check","success":true,"diagnostics":[]}
+{"schemaVersion":1,"command":"check","success":true,"diagnostics":[],"contract":{"input":null,"result":"i64"}}
 ```
+
+`check` adds `contract`, which is `null` when validation fails. For a valid program it reports what the entry point declares:
+
+- `contract.input`: `null` when the program takes no input, otherwise an object with the record `type` and its `fields` as `{"name","type"}` pairs **in declared order**. This is the shape the host must supply.
+- `contract.result`: the declared result type name, `i64` or a record name.
+
+An agent reads `contract` to learn what to feed a program without parsing its source.
 
 ## Inspect
 
@@ -52,13 +59,46 @@ The process exit status remains meaningful: `0` means success, `1` means the Var
 
 The exact step count and line ending in this illustration are not a compatibility promise. Their types and meanings are. JSON mode never mixes program output with the response document.
 
+## Host input
+
+A program whose entry point declares a record parameter requires the host to supply that record as JSON. Binding is total and runs **before execution begins**, so a rejected input consumes zero steps and never partially executes.
+
+Binding is exact in the same way record construction is exact: every declared field must be present exactly once with a matching type, no field may be added, and nothing is coerced or defaulted. Diagnostics use the source-independent span `0:0` and name the failing field path, including list indexes such as `items[1]`.
+
+| Code | Meaning |
+| --- | --- |
+| `VARN6000` | The program declares an input, but none was supplied. |
+| `VARN6001` | An input was supplied, but the program declares none. |
+| `VARN6002` | Input exceeded the host character ceiling. |
+| `VARN6003` | Input is not valid JSON. |
+| `VARN6004` | Input root is not a JSON object. |
+| `VARN6005` | Input sets a field the record does not declare. |
+| `VARN6006` | Input sets a field more than once. |
+| `VARN6007` | Input is missing a declared field. |
+| `VARN6008` | Input value type does not match the declared field type. |
+| `VARN6009` | Numeric value is not representable in the declared numeric type. |
+| `VARN6010` | List value exceeds the 1,024-element ceiling. |
+
+`i64` requires a whole JSON number in range; `1200.5` is rejected rather than truncated. JSON `null` binds only to an optional field and produces a typed absence; any other value produces a present optional.
+
+Supply input with `varn run --input <file.json>`, the `varn_run` `input` argument, or `VarnRunOptions.Input`. Omit it entirely for a program that declares no input.
+
+```powershell
+./varn.cmd check examples/order-calculation.varn --json
+./varn.cmd run examples/order-calculation.varn --input examples/order-gold.json --json
+./varn.cmd run examples/order-calculation.varn --input examples/order-basic.json --json
+```
+
+The second and third commands run the same unchanged program and return different verified results.
+
 ## Recommended agent loop
 
-1. Write a candidate `.varn` source file.
+1. Write a candidate `.varn` source file. Put the data in the input, never in the source.
 2. Call `check --json` and branch on `success`.
 3. Repair source using diagnostic codes and spans, then check again.
-4. Optionally call `inspect --json` to compare canonical structure.
-5. Call `run --json` only with the smallest required `--allow` grants and a suitable `--max-steps` ceiling.
-6. Treat external assemblies passed through `--module` as trusted host code.
+4. Read `contract` from the successful check to learn the input shape and result type.
+5. Optionally call `inspect --json` to compare canonical structure.
+6. Call `run --json` once per input, with the smallest required `--allow` grants and a suitable `--max-steps` ceiling. Reuse the same checked source for every input.
+7. Treat external assemblies passed through `--module` as trusted host code.
 
 This transport remains independent of Codex, MCP, or any other agent protocol. The local MCP adapter delegates to the same engine and returns these typed response objects as structured content.

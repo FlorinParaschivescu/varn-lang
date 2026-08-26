@@ -6,21 +6,37 @@ Varn should advance through small, measurable vertical slices. Each milestone in
 
 1. [x] Real agent protocol loop: Codex generates, checks, repairs, inspects, and executes Varn through MCP.
 2. [x] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
-3. [ ] Structured application tasks: records land; host inputs and `Result` complete the data and failure contracts.
+3. [x] Structured application tasks: records and typed host inputs run one verified rule over many structured inputs. `Result` still owes explicit failure contracts.
 4. [ ] Controlled web/API tasks: structured network policy plus a trusted HTTP module.
 5. [ ] Community-hosted execution: isolated, versioned, signed module processes.
 
-## Current focus — typed host inputs
+## Current focus — measure the thesis
 
-The next vertical slice separates the data from the program, so one checked Varn program can be reused across many host-supplied inputs.
+Varn now runs the first scenario worth benchmarking, so the next slice measures whether the representation actually earns its cost instead of assuming it does. This is deliberately sequenced before `Result`: the outcome decides whether the rest of the roadmap is aimed correctly.
 
-- [ ] Specify a declared program input contract and a structured entry-point result.
-- [ ] Accept host-supplied structured data as a checked value rather than generated source.
-- [ ] Validate every host input against the declared contract before execution begins.
-- [ ] Teach `varn_check` and `varn_run` the input contract, with exact rejection diagnostics.
-- [ ] Add tests that run one unchanged program over several different inputs.
+- [ ] Build a reproducible task set of small structured rules with known-correct answers.
+- [ ] Generate solutions in Varn and in Python-plus-JSON-tool-calls under identical conditions.
+- [ ] Measure **silent-wrong rate**: the run succeeds and returns a plausible but incorrect answer.
+- [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
+- [ ] Measure first-try correctness and correctness after N repairs, and publish the dataset and results.
 
-Exit criterion: an isolated agent generates and repairs one Varn program, then executes it against several structured host inputs and receives deterministic structured results, with no filesystem, network, or other capability.
+Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, the research question should be rewritten around verifiability rather than token cost.
+
+## Completed — typed host inputs
+
+This slice separates the data from the program, so one checked Varn program is reusable across many host-supplied inputs.
+
+- [x] Specify a declared program input contract and a structured entry-point result.
+- [x] Accept host-supplied structured data as a checked value rather than generated source.
+- [x] Validate every host input against the declared contract before execution begins.
+- [x] Teach `varn_check` and `varn_run` the input contract, with exact rejection diagnostics.
+- [x] Add tests that run one unchanged program over several different inputs.
+
+Exit criterion met: `fn main(@0:Order)->Settlement` declares the contract, `varn_check` reports it as `contract.input`/`contract.result`, and `varn run --input` or the `varn_run` `input` argument supplies the data. `VARN6000`-`VARN6010` name every binding fault exactly, including list element paths such as `items[1]`. Binding precedes execution, so a rejected input consumes zero steps.
+
+Protocol evidence: through the real stdio MCP process, one unchanged order-calculation program was checked once, its contract read from the response, then executed against three different inputs returning `235`, `0`, and `0` discounts; a mistyped element was rejected at `items[1]` with zero steps consumed and no capabilities granted.
+
+Deliberately still open: the `varn_check` contract projection describes records only, because record fields cannot yet nest. Deeper host payloads need nested records, which is a separate slice.
 
 ## Completed — typed records
 
@@ -106,7 +122,7 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 - [x] Add typed optional values with safe extraction.
 - [x] Add typed lists with bounded traversal.
 - [x] Add records.
-- [ ] Add typed host inputs.
+- [x] Add typed host inputs.
 - [ ] Add `Result` values.
 - [ ] Add exhaustive success and rejection tests for every feature.
 
@@ -159,6 +175,6 @@ In parallel with M1–M3:
 2. [x] Add structured JSON diagnostics and execution results.
 3. [x] Build a thin tool adapter around `check`, `inspect`, and `run`.
 4. [ ] Package authoring guidance as a Codex skill after the syntax stabilizes.
-5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares token cost and success rate.
+5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares silent-wrong rate and tokens to verified-correct against Python.
 
 This lets AI agents use Varn early while keeping the language experiment measurable.

@@ -54,9 +54,9 @@ public sealed class VarnTypeChecker
         {
             Report("VARN3003", "A program must declare fn main()->i64.", program.Span);
         }
-        else if (main.Parameters.Count != 0 || main.ReturnType != VarnType.I64)
+        else
         {
-            Report("VARN3004", "The entry point must have the signature fn main()->i64.", main.Span);
+            CheckEntryPoint(main);
         }
 
         foreach (var function in program.Functions)
@@ -65,6 +65,32 @@ public sealed class VarnTypeChecker
         }
 
         return new TypeCheckResult(_diagnostics.ToArray());
+    }
+
+    private void CheckEntryPoint(FunctionSyntax main)
+    {
+        if (main.Parameters.Count > 1)
+        {
+            Report(
+                "VARN3004",
+                $"The entry point takes at most one input parameter, but '{main.Name}' declares {main.Parameters.Count}.",
+                main.Span);
+        }
+        else if (main.Parameters.Count == 1 && !_records.ContainsKey(main.Parameters[0].Type.Name))
+        {
+            Report(
+                "VARN3004",
+                $"The entry point input must be a declared record type, not {main.Parameters[0].Type}.",
+                main.Parameters[0].Span);
+        }
+
+        if (main.ReturnType != VarnType.I64 && !_records.ContainsKey(main.ReturnType.Name))
+        {
+            Report(
+                "VARN3004",
+                $"The entry point must return i64 or a declared record type, not {main.ReturnType}.",
+                main.Span);
+        }
     }
 
     private IReadOnlyDictionary<string, VarnRecordShape> CollectRecords(ProgramSyntax program)

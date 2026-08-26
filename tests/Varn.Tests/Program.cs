@@ -83,6 +83,16 @@ public static class Program
             ("record construction charges one step per field", RecordConstructionChargesPerField),
             ("modules can produce record values", ModulesCanProduceRecordValues),
             ("JSON record values keep declared field order", JsonRecordValuesKeepFieldOrder),
+            ("entry point accepts a record input and structured result", EntryPointAcceptsRecordInputAndResult),
+            ("one checked program runs over several host inputs", OneProgramRunsOverSeveralInputs),
+            ("checker validates the entry point contract", CheckerValidatesEntryPointContract),
+            ("program input contract is derivable without source", ProgramInputContractIsDerivable),
+            ("input binding enforces the declared contract", InputBindingEnforcesDeclaredContract),
+            ("input binding rejects malformed documents", InputBindingRejectsMalformedDocuments),
+            ("input binding reports exact field faults", InputBindingReportsFieldFaults),
+            ("input binding requires exact value types", InputBindingRequiresExactValueTypes),
+            ("input binds optionals, booleans, and floats", InputBindsOptionalsBooleansAndFloats),
+            ("input binding precedes execution", InputBindingPrecedesExecution),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -1139,6 +1149,249 @@ public static class Program
             let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
             let @1:Settlement settle(@0)
             ret @1.discount
+        end
+        """;
+
+    private static async Task EntryPointAcceptsRecordInputAndResult()
+    {
+        var result = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1200,850,300],"customerTier":"gold"}""").ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        var settlement = result.ReturnValue?.AsRecord()
+            ?? throw new InvalidOperationException("Expected a structured result.");
+        Assert(settlement.Shape.Name == "Settlement", "Expected the declared result record.");
+        Assert(settlement.GetField("total").AsI64() == 2350, "Expected a 2350 total.");
+        Assert(settlement.GetField("discount").AsI64() == 235, "Expected a 235 discount.");
+        Assert(result.ExitCode == 0, "Expected a structured result to exit 0.");
+    }
+
+    private static async Task OneProgramRunsOverSeveralInputs()
+    {
+        (string Input, long Total, long Discount)[] cases =
+        [
+            ("""{"items":[1200,850,300],"customerTier":"gold"}""", 2350, 235),
+            ("""{"items":[100],"customerTier":"basic"}""", 100, 0),
+            ("""{"items":[],"customerTier":"gold"}""", 0, 0)
+        ];
+
+        foreach (var (input, total, discount) in cases)
+        {
+            var result = await RunWithInputAsync(OrderCalculationProgram, input).ConfigureAwait(false);
+            Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+            var settlement = result.ReturnValue!.Value.AsRecord();
+            Assert(settlement.GetField("total").AsI64() == total, $"Expected total {total} for {input}.");
+            Assert(settlement.GetField("discount").AsI64() == discount, $"Expected discount {discount} for {input}.");
+        }
+
+        var first = await RunWithInputAsync(OrderCalculationProgram, cases[0].Input).ConfigureAwait(false);
+        var repeat = await RunWithInputAsync(OrderCalculationProgram, cases[0].Input).ConfigureAwait(false);
+        Assert(first.Steps == repeat.Steps, "Expected the same input to consume the same steps.");
+    }
+
+    private static Task CheckerValidatesEntryPointContract()
+    {
+        string[] sources =
+        [
+            """
+            budget[steps=20]
+            rec Pair(a:i64)
+            fn main(@0:Pair,@1:Pair)->i64
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main(@0:i64)->i64
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->str
+                ret "x"
+            end
+            """
+        ];
+
+        foreach (var source in sources)
+        {
+            AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3004");
+        }
+
+        Assert(CreateEngine().Check(OrderCalculationProgram).IsValid, "Expected a record entry point to be valid.");
+        return Task.CompletedTask;
+    }
+
+    private static Task ProgramInputContractIsDerivable()
+    {
+        var check = CreateEngine().Check(OrderCalculationProgram);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+        var input = VarnProgramContract.InputShape(check.Program)
+            ?? throw new InvalidOperationException("Expected a declared input contract.");
+        Assert(input.Name == "Order", "Expected the Order input contract.");
+        Assert(
+            input.Fields.Select(static field => $"{field.Name}:{field.Type}")
+                .SequenceEqual(["items:list[i64]", "customerTier:str"]),
+            "Expected the declared input fields in declaration order.");
+        Assert(
+            VarnProgramContract.ResultType(check.Program) == VarnType.Parse("Settlement"),
+            "Expected the declared result type.");
+        Assert(
+            VarnProgramContract.InputShape(CreateEngine().Check(HelloProgram).Program) is null,
+            "Expected a program without input to declare no contract.");
+        return Task.CompletedTask;
+    }
+
+    private static async Task InputBindingEnforcesDeclaredContract()
+    {
+        var missing = await RunWithInputAsync(OrderCalculationProgram, null).ConfigureAwait(false);
+        AssertHasDiagnostic(missing.Diagnostics, "VARN6000");
+
+        var unexpected = await RunWithInputAsync(
+            """
+            budget[steps=20]
+            fn main()->i64
+                ret 0
+            end
+            """,
+            """{"items":[]}""").ConfigureAwait(false);
+        AssertHasDiagnostic(unexpected.Diagnostics, "VARN6001");
+    }
+
+    private static async Task InputBindingRejectsMalformedDocuments()
+    {
+        var oversized = await RunWithInputAsync(
+            OrderCalculationProgram,
+            new string('x', VarnInputBinder.MaximumInputCharacters + 1)).ConfigureAwait(false);
+        AssertHasDiagnostic(oversized.Diagnostics, "VARN6002");
+
+        var malformed = await RunWithInputAsync(OrderCalculationProgram, "{\"items\":").ConfigureAwait(false);
+        AssertHasDiagnostic(malformed.Diagnostics, "VARN6003");
+
+        var notAnObject = await RunWithInputAsync(OrderCalculationProgram, "[1,2,3]").ConfigureAwait(false);
+        AssertHasDiagnostic(notAnObject.Diagnostics, "VARN6004");
+    }
+
+    private static async Task InputBindingReportsFieldFaults()
+    {
+        var unknown = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1],"customerTier":"gold","tier":"gold"}""").ConfigureAwait(false);
+        AssertHasDiagnostic(unknown.Diagnostics, "VARN6005");
+
+        var duplicated = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1],"customerTier":"gold","customerTier":"basic"}""").ConfigureAwait(false);
+        AssertHasDiagnostic(duplicated.Diagnostics, "VARN6006");
+
+        var incomplete = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1]}""").ConfigureAwait(false);
+        AssertHasDiagnostic(incomplete.Diagnostics, "VARN6007");
+        Assert(
+            incomplete.Diagnostics.Single(static diagnostic => diagnostic.Code == "VARN6007").Message
+                .Contains("customerTier", StringComparison.Ordinal),
+            "Expected the missing input field to be named.");
+    }
+
+    private static async Task InputBindingRequiresExactValueTypes()
+    {
+        var mismatched = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":"1200","customerTier":"gold"}""").ConfigureAwait(false);
+        AssertHasDiagnostic(mismatched.Diagnostics, "VARN6008");
+
+        var elementMismatch = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1200,true],"customerTier":"gold"}""").ConfigureAwait(false);
+        AssertHasDiagnostic(elementMismatch.Diagnostics, "VARN6008");
+        Assert(
+            elementMismatch.Diagnostics.Single(static diagnostic => diagnostic.Code == "VARN6008").Message
+                .Contains("items[1]", StringComparison.Ordinal),
+            "Expected the failing element path to be named.");
+
+        foreach (var value in new[] { "1200.5", "99999999999999999999" })
+        {
+            var notAnInteger = await RunWithInputAsync(
+                OrderCalculationProgram,
+                $$"""{"items":[{{value}}],"customerTier":"gold"}""").ConfigureAwait(false);
+            AssertHasDiagnostic(notAnInteger.Diagnostics, "VARN6009");
+        }
+
+        var elements = string.Join(',', Enumerable.Repeat("1", VarnValue.MaxListElements + 1));
+        var oversized = await RunWithInputAsync(
+            OrderCalculationProgram,
+            $$"""{"items":[{{elements}}],"customerTier":"gold"}""").ConfigureAwait(false);
+        AssertHasDiagnostic(oversized.Diagnostics, "VARN6010");
+    }
+
+    private static async Task InputBindsOptionalsBooleansAndFloats()
+    {
+        const string source = """
+            budget[steps=100]
+            rec Profile(name:str,age:i64?,active:bool,score:f64)
+            fn main(@0:Profile)->i64
+                if @0.active
+                    if let @1:i64 @0.age
+                        ret @1
+                    end
+                end
+                ret -1
+            end
+            """;
+        var present = await RunWithInputAsync(
+            source,
+            """{"name":"ada","age":36,"active":true,"score":1.5}""").ConfigureAwait(false);
+        Assert(present.IsSuccess, FormatDiagnostics(present.Diagnostics));
+        Assert(present.ReturnValue?.AsI64() == 36, "Expected a present optional to bind.");
+
+        var absent = await RunWithInputAsync(
+            source,
+            """{"name":"ada","age":null,"active":true,"score":1.5}""").ConfigureAwait(false);
+        Assert(absent.IsSuccess, FormatDiagnostics(absent.Diagnostics));
+        Assert(absent.ReturnValue?.AsI64() == -1, "Expected JSON null to bind as a typed absence.");
+
+        var inactive = await RunWithInputAsync(
+            source,
+            """{"name":"ada","age":36,"active":false,"score":1.5}""").ConfigureAwait(false);
+        Assert(inactive.ReturnValue?.AsI64() == -1, "Expected the boolean field to bind.");
+    }
+
+    private static async Task InputBindingPrecedesExecution()
+    {
+        var rejected = await RunWithInputAsync(
+            OrderCalculationProgram,
+            """{"items":[1]}""").ConfigureAwait(false);
+        Assert(!rejected.IsSuccess, "Expected invalid input to fail.");
+        Assert(rejected.Steps == 0, "Expected no steps to be consumed before input validation succeeds.");
+        Assert(rejected.ExitCode == 1, "Expected a rejected input to exit 1.");
+    }
+
+    private static ValueTask<VarnRunResult> RunWithInputAsync(string source, string? input) =>
+        CreateEngine().RunAsync(source, new VarnRunOptions { Input = input });
+
+    private const string OrderCalculationProgram = """
+        budget[steps=300]
+        rec Order(items:list[i64],customerTier:str)
+        rec Settlement(total:i64,discount:i64)
+        fn total(@0:list[i64])->i64
+            var @1:i64 0
+            each @2:i64 in @0 max 16
+                set @1 add(@1,@2)
+            end
+            ret @1
+        end
+        fn rate(@0:str)->i64
+            if eq(@0,"gold")
+                ret 10
+            end
+            ret 0
+        end
+        fn main(@0:Order)->Settlement
+            let @1:i64 total(@0.items)
+            let @2:i64 rate(@0.customerTier)
+            ret rec[Settlement](total=@1,discount=div(mul(@1,@2),100))
         end
         """;
 

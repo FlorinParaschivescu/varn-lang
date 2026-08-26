@@ -45,10 +45,16 @@ public sealed class VarnEngine
             return new VarnRunResult(null, check.Diagnostics, 0);
         }
 
+        var binding = VarnInputBinder.Bind(VarnProgramContract.InputShape(check.Program), options.Input);
+        if (!binding.IsValid)
+        {
+            return new VarnRunResult(null, binding.Diagnostics, 0);
+        }
+
         var interpreter = new Interpreter(check.Program, _modules, options);
         try
         {
-            var value = await interpreter.RunAsync(cancellationToken).ConfigureAwait(false);
+            var value = await interpreter.RunAsync(binding.Value, cancellationToken).ConfigureAwait(false);
             return new VarnRunResult(value, [], interpreter.Steps);
         }
         catch (VarnExecutionException exception)
@@ -81,20 +87,18 @@ public sealed class VarnEngine
             _modules = modules;
             _options = options;
             _functions = program.Functions.ToDictionary(static function => function.Name, StringComparer.Ordinal);
-            _records = program.Records.ToDictionary(
-                static record => record.Name,
-                static record => new VarnRecordShape(
-                    record.Name,
-                    [.. record.Fields.Select(static field => new VarnRecordField(field.Name, field.Type))]),
-                StringComparer.Ordinal);
+            _records = VarnProgramContract.RecordShapes(program);
             _stepLimit = Math.Min(program.StepBudget!.Value, options.MaxSteps);
             _currentSpan = program.Span;
         }
 
         public long Steps { get; private set; }
 
-        public ValueTask<VarnValue> RunAsync(CancellationToken cancellationToken) =>
-            InvokeUserFunctionAsync(_functions["main"], [], cancellationToken);
+        public ValueTask<VarnValue> RunAsync(VarnValue? input, CancellationToken cancellationToken) =>
+            InvokeUserFunctionAsync(
+                _functions[VarnProgramContract.EntryPointName],
+                input is { } value ? [value] : [],
+                cancellationToken);
 
         private async ValueTask<VarnValue> InvokeUserFunctionAsync(
             FunctionSyntax function,

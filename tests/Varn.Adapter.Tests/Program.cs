@@ -16,6 +16,30 @@ public static class Program
         end
         """;
 
+    private const string OrderCalculationProgram = """
+        budget[steps=300]
+        rec Order(items:list[i64],customerTier:str)
+        rec Settlement(total:i64,discount:i64)
+        fn total(@0:list[i64])->i64
+            var @1:i64 0
+            each @2:i64 in @0 max 16
+                set @1 add(@1,@2)
+            end
+            ret @1
+        end
+        fn rate(@0:str)->i64
+            if eq(@0,"gold")
+                ret 10
+            end
+            ret 0
+        end
+        fn main(@0:Order)->Settlement
+            let @1:i64 total(@0.items)
+            let @2:i64 rate(@0.customerTier)
+            ret rec[Settlement](total=@1,discount=div(mul(@1,@2),100))
+        end
+        """;
+
     public static async Task<int> Main()
     {
         var tests = new (string Name, Func<Task> Run)[]
@@ -25,6 +49,9 @@ public static class Program
             ("adapter denies an ungranted program capability", RunDeniesMissingCapability),
             ("adapter captures successful execution", RunCapturesSuccessfulExecution),
             ("adapter enforces output ceilings", RunEnforcesOutputCeiling),
+            ("adapter reports the declared input contract", CheckReportsInputContract),
+            ("adapter binds structured host input", RunBindsStructuredInput),
+            ("adapter rejects input that violates the contract", RunRejectsInvalidInput),
             ("MCP stdio host supports optional, list, and record check-inspect-run", McpHostSupportsCheckRepairRun)
         };
 
@@ -61,6 +88,75 @@ public static class Program
         Assert(!response.Success, "Expected invalid source to fail.");
         Assert(response.Diagnostics.Any(static diagnostic => diagnostic.Code == "VARN3008"), "Expected VARN3008.");
         return Task.CompletedTask;
+    }
+
+    private static Task CheckReportsInputContract()
+    {
+        var response = new VarnToolService().Check(OrderCalculationProgram);
+        Assert(response.Success, FormatDiagnostics(response.Diagnostics));
+        var contract = response.Contract ?? throw new InvalidOperationException("Expected a declared contract.");
+        var input = contract.Input ?? throw new InvalidOperationException("Expected a declared input contract.");
+        Assert(input.Type == "Order", "Expected the Order input contract.");
+        Assert(
+            input.Fields.Select(static field => $"{field.Name}:{field.Type}")
+                .SequenceEqual(["items:list[i64]", "customerTier:str"]),
+            "Expected the declared input fields in declaration order.");
+        Assert(contract.Result == "Settlement", "Expected the declared result type.");
+
+        var withoutInput = new VarnToolService().Check(HelloProgram);
+        Assert(withoutInput.Contract?.Input is null, "Expected no input contract for a program without one.");
+        Assert(withoutInput.Contract?.Result == "i64", "Expected an i64 result contract.");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RunBindsStructuredInput()
+    {
+        (string Input, long Total, long Discount)[] cases =
+        [
+            ("""{"items":[1200,850,300],"customerTier":"gold"}""", 2350, 235),
+            ("""{"items":[100,40],"customerTier":"basic"}""", 140, 0)
+        ];
+
+        foreach (var (input, total, discount) in cases)
+        {
+            var response = await new VarnToolService()
+                .RunAsync(OrderCalculationProgram, [], 300, 100, input)
+                .ConfigureAwait(false);
+            Assert(response.Success, FormatDiagnostics(response.Diagnostics));
+            Assert(response.ExitCode == 0, "Expected a structured result to exit 0.");
+            var returnValue = response.ReturnValue
+                ?? throw new InvalidOperationException("Expected a structured return value.");
+            Assert(returnValue.Type == "Settlement", "Expected the declared result record.");
+            var json = JsonSerializer.SerializeToElement(returnValue.Value);
+            Assert(
+                json[0].GetProperty("name").GetString() == "total" &&
+                json[0].GetProperty("value").GetProperty("value").GetInt64() == total,
+                $"Expected total {total}.");
+            Assert(
+                json[1].GetProperty("name").GetString() == "discount" &&
+                json[1].GetProperty("value").GetProperty("value").GetInt64() == discount,
+                $"Expected discount {discount}.");
+        }
+    }
+
+    private static async Task RunRejectsInvalidInput()
+    {
+        var missingField = await new VarnToolService()
+            .RunAsync(OrderCalculationProgram, [], 300, 100, """{"items":[1]}""")
+            .ConfigureAwait(false);
+        Assert(!missingField.Success, "Expected an incomplete input to fail.");
+        Assert(missingField.Steps == 0, "Expected input validation to precede execution.");
+        AssertHasDiagnostic(missingField.Diagnostics, "VARN6007");
+
+        var missingInput = await new VarnToolService()
+            .RunAsync(OrderCalculationProgram, [], 300, 100)
+            .ConfigureAwait(false);
+        AssertHasDiagnostic(missingInput.Diagnostics, "VARN6000");
+
+        var unexpectedInput = await new VarnToolService()
+            .RunAsync(HelloProgram, ["console.write"], 100, 100, """{"a":1}""")
+            .ConfigureAwait(false);
+        AssertHasDiagnostic(unexpectedInput.Diagnostics, "VARN6001");
     }
 
     private static async Task RunRequiresExplicitCapabilities()
@@ -146,6 +242,12 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("read a field with @0.items", StringComparison.Ordinal) is true,
             "Expected compact record field access guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("fn main(@0:Order)->Settlement", StringComparison.Ordinal) is true,
+            "Expected host input contract guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("Never write the data into the source", StringComparison.Ordinal) is true,
+            "Expected guidance against embedding data in the source.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
@@ -362,6 +464,66 @@ public static class Program
         Assert(recordRun.GetProperty("success").GetBoolean(), "Expected MCP run to accept the repaired record source.");
         Assert(recordRun.GetProperty("returnValue").GetProperty("value").GetInt64() == 235,
             "Expected MCP structured order calculation to return a 235 discount.");
+
+        var contractCheckResult = await client.CallToolAsync(
+            "varn_check",
+            new Dictionary<string, object?> { ["source"] = OrderCalculationProgram }).ConfigureAwait(false);
+        var contract = StructuredRoot(contractCheckResult.StructuredContent).GetProperty("contract");
+        Assert(contract.GetProperty("result").GetString() == "Settlement", "Expected the MCP result contract.");
+        var contractFields = contract.GetProperty("input").GetProperty("fields").EnumerateArray()
+            .Select(static field => $"{field.GetProperty("name").GetString()}:{field.GetProperty("type").GetString()}")
+            .ToArray();
+        Assert(
+            contract.GetProperty("input").GetProperty("type").GetString() == "Order" &&
+            contractFields.SequenceEqual(["items:list[i64]", "customerTier:str"]),
+            "Expected MCP check to report the declared input contract.");
+
+        (string Input, long Discount)[] inputs =
+        [
+            ("""{"items":[1200,850,300],"customerTier":"gold"}""", 235),
+            ("""{"items":[100,40],"customerTier":"basic"}""", 0),
+            ("""{"items":[],"customerTier":"gold"}""", 0)
+        ];
+
+        foreach (var (input, discount) in inputs)
+        {
+            var inputRunResult = await client.CallToolAsync(
+                "varn_run",
+                new Dictionary<string, object?>
+                {
+                    ["source"] = OrderCalculationProgram,
+                    ["allowedCapabilities"] = Array.Empty<string>(),
+                    ["maxSteps"] = 300L,
+                    ["maxOutputCharacters"] = 100,
+                    ["input"] = input
+                }).ConfigureAwait(false);
+            var inputRun = StructuredRoot(inputRunResult.StructuredContent);
+            Assert(inputRun.GetProperty("success").GetBoolean(), $"Expected MCP run to accept input {input}.");
+            var fields = inputRun.GetProperty("returnValue").GetProperty("value").EnumerateArray().ToArray();
+            Assert(
+                fields[1].GetProperty("name").GetString() == "discount" &&
+                fields[1].GetProperty("value").GetProperty("value").GetInt64() == discount,
+                $"Expected discount {discount} for input {input}.");
+        }
+
+        var badInputResult = await client.CallToolAsync(
+            "varn_run",
+            new Dictionary<string, object?>
+            {
+                ["source"] = OrderCalculationProgram,
+                ["allowedCapabilities"] = Array.Empty<string>(),
+                ["maxSteps"] = 300L,
+                ["maxOutputCharacters"] = 100,
+                ["input"] = """{"items":[1200,"850"],"customerTier":"gold"}"""
+            }).ConfigureAwait(false);
+        var badInput = StructuredRoot(badInputResult.StructuredContent);
+        Assert(!badInput.GetProperty("success").GetBoolean(), "Expected MCP run to reject a mistyped input element.");
+        Assert(badInput.GetProperty("steps").GetInt64() == 0, "Expected MCP input validation to precede execution.");
+        Assert(
+            badInput.GetProperty("diagnostics").EnumerateArray()
+                .Any(static diagnostic => diagnostic.GetProperty("message").GetString()?
+                    .Contains("items[1]", StringComparison.Ordinal) is true),
+            "Expected MCP to name the failing input element path.");
     }
 
     private static string FindToolHostExecutable()
