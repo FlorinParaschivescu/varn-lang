@@ -1,0 +1,52 @@
+name: Bug report
+description: Report incorrect Varn compiler, runtime, CLI, or module behavior.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping make Varn deterministic and reliable.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: Commit SHA, branch, or release where the problem occurs.
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Minimal Varn program
+      description: Provide the smallest program that reproduces the issue.
+      render: varn
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and host grants
+      description: Include the exact check, inspect, or run command and every capability grant.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and diagnostics
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this on the latest main branch.
+          required: true
+        - label: I did not include credentials, tokens, or private data.
+          required: true

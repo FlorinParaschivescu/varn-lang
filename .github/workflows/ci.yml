@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build, test, and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Varn.slnx
+
+      - name: Build
+        run: dotnet build Varn.slnx --configuration Release --no-restore --nologo
+
+      - name: Run bootstrap tests
+        run: dotnet run --project tests/Varn.Tests --configuration Release --no-build
+
+      - name: Verify formatting
+        run: dotnet format Varn.slnx --verify-no-changes --no-restore --verbosity minimal
+
+      - name: Smoke-test CLI
+        run: |
+          dotnet run --project src/Varn.Cli --configuration Release --no-build -- check examples/hello.varn
+          dotnet run --project src/Varn.Cli --configuration Release --no-build -- inspect examples/hello.varn
+          dotnet run --project src/Varn.Cli --configuration Release --no-build -- run examples/hello.varn --allow console.write
+
+      - name: Smoke-test external module loading
+        run: >-
+          dotnet run --project src/Varn.Cli --configuration Release --no-build --
+          run examples/module-demo.varn
+          --module examples/modules/Varn.ExampleModule/bin/Release/net10.0/Varn.ExampleModule.dll
+          --allow console.write
