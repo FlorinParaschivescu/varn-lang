@@ -28,5 +28,4 @@ fn main(@0:Order)->result[Settlement]
     else err @6:str
         ret err[Settlement](@6)
     end
-    ret err[Settlement]("unreachable")
 end

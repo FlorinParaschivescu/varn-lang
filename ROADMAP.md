@@ -15,7 +15,7 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | | Stage | Means | Status |
 | --- | --- | --- | --- |
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
-| S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done |
+| S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done, confirmed by a dogfooding pass |
 | S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; model-generated half open |
 | S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Built, unpublished |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
@@ -70,6 +70,20 @@ Varn exposed nine callable names and could not express `and`, which blocked both
 Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))`, with no helper function per condition.
 
 Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
+
+## Completed — dogfooding pass
+
+Varn was used to write ordinary programs — payroll with overtime, an over-limit receipt, a cart of line items, a filter, a tax table — and every point of friction was recorded and then fixed. Five gaps surfaced, all of which the author had been working around by hand without noticing.
+
+- [x] **A value could not be put into a message.** `str.to_i64` parsed strings into numbers, but nothing went the other way, so every failure reason had to be a constant. For a language whose pitch is that failures carry reasons, that was the worst of the five. Added `str.from_i64`, `str.from_f64`, `str.from_bool`.
+- [x] **Every function needed an unreachable trailing `ret`.** `if ... ret ... else ... ret ... end` was rejected, so programs ended in lies like `ret err[Settlement]("unreachable")` — which this repository's own examples did. The checker now accepts a body whose every branch returns; a loop still does not count, because it may run zero times. The unreachable lines are gone from the examples.
+- [x] **A record could not contain a record, and a list could not hold one.** Line items, batches, addresses — the most common shapes in real data — were inexpressible. A record field, list element, and optional may now each hold a declared record, with nesting stopping at one level. Recursive records are rejected with `VARN3049`.
+- [x] **Lists were construct-only.** There was no way to build one, so `each` could only fold to a scalar and no transformation could produce a collection. Added `list.append`, which returns a new list.
+- [x] **Chained field access did not parse.** Found by a test written for the nesting work: the lexer folds dots into identifiers so `io.print` stays one token, which made `@0.home.city` arrive as a single `home.city` identifier. The parser now splits it, which is unambiguous because field names may not contain dots.
+
+The input binder, contract projection, canonical format, JSON results, and MCP guidance all follow the relaxed type rules. `contract.records` now carries every declared shape, so a host can resolve a nested or list element type name without parsing source.
+
+What this says about the benchmark: its four tasks were all flat scalar-in, scalar-out, because that was all Varn could express when they were written. The task set understates how far Varn was from real work, and should grow structured tasks before the model-generated half runs.
 
 ## Completed — packaging
 

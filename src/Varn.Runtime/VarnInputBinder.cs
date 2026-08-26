@@ -15,8 +15,12 @@ public static class VarnInputBinder
 
     private static readonly SourceSpan HostInputSpan = new(0, 0);
 
-    public static VarnInputBinding Bind(VarnRecordShape? shape, string? input)
+    public static VarnInputBinding Bind(
+        VarnRecordShape? shape,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
+        string? input)
     {
+        ArgumentNullException.ThrowIfNull(records);
         if (shape is null)
         {
             return input is null
@@ -34,18 +38,6 @@ public static class VarnInputBinder
             return Rejected(
                 "VARN6002",
                 $"Input exceeds the host ceiling of {MaximumInputCharacters} characters.");
-        }
-
-        var unsupported = shape.Fields
-            .Where(static field => !VarnValue.IsSupportedFieldType(field.Type))
-            .ToArray();
-        if (unsupported.Length > 0)
-        {
-            return new VarnInputBinding(
-                null,
-                [.. unsupported.Select(field => Diagnose(
-                    "VARN6008",
-                    $"Field '{field.Name}' declares type {field.Type}, which cannot be supplied as host input."))]);
         }
 
         JsonDocument document;
@@ -68,41 +60,36 @@ public static class VarnInputBinder
             }
 
             var diagnostics = new List<Diagnostic>();
-            var properties = ReadProperties(shape, document.RootElement, diagnostics);
-            var values = new VarnValue[shape.Fields.Count];
-            for (var index = 0; index < shape.Fields.Count; index++)
-            {
-                var field = shape.Fields[index];
-                if (!properties.TryGetValue(field.Name, out var element))
-                {
-                    diagnostics.Add(Diagnose(
-                        "VARN6007",
-                        $"Input is missing field '{field.Name}' of type {field.Type} required by '{shape.Name}'."));
-                    continue;
-                }
-
-                values[index] = BindValue(field.Type, element, field.Name, diagnostics);
-            }
-
+            var value = BindRecord(shape, document.RootElement, shape.Name, records, diagnostics);
             return diagnostics.Count > 0
                 ? new VarnInputBinding(null, diagnostics)
-                : new VarnInputBinding(VarnValue.FromRecord(shape, values), []);
+                : new VarnInputBinding(value, []);
         }
     }
 
-    private static Dictionary<string, JsonElement> ReadProperties(
+    private static VarnValue BindRecord(
         VarnRecordShape shape,
-        JsonElement root,
+        JsonElement element,
+        string path,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
         List<Diagnostic> diagnostics)
     {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            diagnostics.Add(Diagnose(
+                "VARN6008",
+                $"Input field '{path}' requires {shape.Name}, got {Describe(element.ValueKind)}."));
+            return Default(shape.Type, records);
+        }
+
         var properties = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var property in root.EnumerateObject())
+        foreach (var property in element.EnumerateObject())
         {
             if (shape.IndexOf(property.Name) < 0)
             {
                 diagnostics.Add(Diagnose(
                     "VARN6005",
-                    $"Input sets field '{property.Name}', which record '{shape.Name}' does not declare."));
+                    $"Input sets field '{Join(path, property.Name)}', which record '{shape.Name}' does not declare."));
                 continue;
             }
 
@@ -110,22 +97,34 @@ public static class VarnInputBinder
             {
                 diagnostics.Add(Diagnose(
                     "VARN6006",
-                    $"Input sets field '{property.Name}' more than once."));
+                    $"Input sets field '{Join(path, property.Name)}' more than once."));
             }
         }
 
-        return properties;
+        var values = new VarnValue[shape.Fields.Count];
+        for (var index = 0; index < shape.Fields.Count; index++)
+        {
+            var field = shape.Fields[index];
+            if (!properties.TryGetValue(field.Name, out var fieldElement))
+            {
+                diagnostics.Add(Diagnose(
+                    "VARN6007",
+                    $"Input is missing field '{Join(path, field.Name)}' of type {field.Type} required by '{shape.Name}'."));
+                values[index] = Default(field.Type, records);
+                continue;
+            }
+
+            values[index] = BindValue(field.Type, fieldElement, Join(path, field.Name), records, diagnostics);
+        }
+
+        return VarnValue.FromRecord(shape, values);
     }
 
-    /// <summary>
-    /// Binds one value. The caller guarantees <paramref name="type"/> is a supported field type, so
-    /// every placeholder returned alongside a diagnostic still has the declared type and keeps the
-    /// surrounding list or record constructible until the diagnostics are reported.
-    /// </summary>
     private static VarnValue BindValue(
         VarnType type,
         JsonElement element,
         string path,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
         List<Diagnostic> diagnostics)
     {
         if (type.IsOptional)
@@ -137,19 +136,33 @@ public static class VarnInputBinder
             }
 
             var before = diagnostics.Count;
-            var contained = BindScalar(elementType, element, path, diagnostics);
+            var contained = BindContained(elementType, element, path, records, diagnostics);
             return diagnostics.Count > before ? VarnValue.None(elementType) : VarnValue.Some(contained);
         }
 
-        return type.IsList
-            ? BindList(type, element, path, diagnostics)
-            : BindScalar(type, element, path, diagnostics);
+        if (type.IsList)
+        {
+            return BindList(type, element, path, records, diagnostics);
+        }
+
+        return BindContained(type, element, path, records, diagnostics);
     }
+
+    private static VarnValue BindContained(
+        VarnType type,
+        JsonElement element,
+        string path,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
+        List<Diagnostic> diagnostics) =>
+        records.TryGetValue(type.Name, out var shape)
+            ? BindRecord(shape, element, path, records, diagnostics)
+            : BindScalar(type, element, path, diagnostics);
 
     private static VarnValue BindList(
         VarnType type,
         JsonElement element,
         string path,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
         List<Diagnostic> diagnostics)
     {
         var elementType = type.ListElementType!;
@@ -172,7 +185,7 @@ public static class VarnInputBinder
         var index = 0;
         foreach (var item in element.EnumerateArray())
         {
-            values.Add(BindScalar(elementType, item, $"{path}[{index}]", diagnostics));
+            values.Add(BindContained(elementType, item, $"{path}[{index}]", records, diagnostics));
             index++;
         }
 
@@ -238,9 +251,45 @@ public static class VarnInputBinder
 
                 return VarnValue.From(element.GetString()!);
             default:
-                throw new InvalidOperationException($"Type '{type}' is not a bindable scalar.");
+                diagnostics.Add(Diagnose(
+                    "VARN6008",
+                    $"Input field '{path}' declares type {type}, which cannot be supplied as host input."));
+                return VarnValue.From(0L);
         }
     }
+
+    /// <summary>
+    /// A type-correct stand-in used when a field failed to bind, so the surrounding record or list
+    /// still constructs and every remaining field is checked before the input is rejected. Records
+    /// are acyclic by the time binding runs, so this recursion terminates.
+    /// </summary>
+    private static VarnValue Default(VarnType type, IReadOnlyDictionary<string, VarnRecordShape> records)
+    {
+        if (type.IsOptional)
+        {
+            return VarnValue.None(type.OptionalElementType!);
+        }
+
+        if (type.IsList)
+        {
+            return VarnValue.FromList(type.ListElementType!, []);
+        }
+
+        if (records.TryGetValue(type.Name, out var shape))
+        {
+            return VarnValue.FromRecord(shape, [.. shape.Fields.Select(field => Default(field.Type, records))]);
+        }
+
+        return type.Name switch
+        {
+            "f64" => VarnValue.From(0d),
+            "bool" => VarnValue.From(false),
+            "str" => VarnValue.From(string.Empty),
+            _ => VarnValue.From(0L)
+        };
+    }
+
+    private static string Join(string path, string field) => $"{path}.{field}";
 
     private static Diagnostic Mismatch(VarnType type, JsonElement element, string path) =>
         Diagnose(

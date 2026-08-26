@@ -121,14 +121,6 @@ public sealed class VarnTypeChecker
                     continue;
                 }
 
-                if (!VarnValue.IsSupportedFieldType(field.Type))
-                {
-                    Report(
-                        "VARN3038",
-                        $"Record field type '{field.Type}' is not supported.",
-                        field.Span);
-                }
-
                 fields.Add(new VarnRecordField(field.Name, field.Type));
             }
 
@@ -150,7 +142,83 @@ public sealed class VarnTypeChecker
             }
         }
 
+        // Field types are validated only once every declaration is known, so a record may refer to
+        // another declared later in the file.
+        foreach (var declaration in program.Records)
+        {
+            foreach (var field in declaration.Fields)
+            {
+                if (!VarnValue.IsSupportedFieldType(field.Type) || !IsDeclaredContained(field.Type, records))
+                {
+                    Report(
+                        "VARN3038",
+                        $"Record field type '{field.Type}' is not supported.",
+                        field.Span);
+                }
+            }
+        }
+
+        ReportRecursiveRecords(program, records);
         return records;
+    }
+
+    private static VarnType ContainedType(VarnType type) =>
+        type.IsOptional ? type.OptionalElementType!
+            : type.IsList ? type.ListElementType!
+            : type;
+
+    private static bool IsDeclaredContained(VarnType type, IReadOnlyDictionary<string, VarnRecordShape> records)
+    {
+        var contained = ContainedType(type);
+        return contained.IsScalar || records.ContainsKey(contained.Name);
+    }
+
+    /// <summary>
+    /// A record that can reach itself through its fields describes a value of unbounded size, which
+    /// no host input could ever supply. Each such record is reported once.
+    /// </summary>
+    private void ReportRecursiveRecords(
+        ProgramSyntax program,
+        IReadOnlyDictionary<string, VarnRecordShape> records)
+    {
+        var reported = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var declaration in program.Records)
+        {
+            if (records.TryGetValue(declaration.Name, out var shape) &&
+                Reaches(shape, declaration.Name, records, new HashSet<string>(StringComparer.Ordinal)) &&
+                reported.Add(declaration.Name))
+            {
+                Report(
+                    "VARN3049",
+                    $"Record '{declaration.Name}' contains itself through its fields, so it has no finite value.",
+                    declaration.Span);
+            }
+        }
+    }
+
+    private static bool Reaches(
+        VarnRecordShape shape,
+        string target,
+        IReadOnlyDictionary<string, VarnRecordShape> records,
+        HashSet<string> visited)
+    {
+        foreach (var field in shape.Fields)
+        {
+            var contained = ContainedType(field.Type);
+            if (string.Equals(contained.Name, target, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (visited.Add(contained.Name) &&
+                records.TryGetValue(contained.Name, out var nested) &&
+                Reaches(nested, target, records, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void CheckFunction(FunctionSyntax function)
@@ -169,11 +237,32 @@ public sealed class VarnTypeChecker
         }
 
         CheckStatements(function.Body, function, symbols);
-        if (function.Body.LastOrDefault() is not ReturnStatementSyntax)
+        if (!AlwaysReturns(function.Body))
         {
-            Report("VARN3009", $"Function '{function.Name}' must end with 'ret'.", function.Span);
+            Report(
+                "VARN3009",
+                $"Function '{function.Name}' can finish without returning. End it with 'ret', or make every branch return.",
+                function.Span);
         }
     }
+
+    /// <summary>
+    /// Whether a block is guaranteed to return on every path. A conditional counts only when both
+    /// arms exist and both return, so no unreachable trailing 'ret' is ever required. Loops never
+    /// count: a bounded loop may run zero times, and proving otherwise would buy nothing here.
+    /// </summary>
+    private static bool AlwaysReturns(IReadOnlyList<StatementSyntax> statements) =>
+        statements.Any(static statement => statement switch
+        {
+            ReturnStatementSyntax => true,
+            IfStatementSyntax conditional =>
+                AlwaysReturns(conditional.ThenBody) && AlwaysReturns(conditional.ElseBody),
+            IfLetStatementSyntax ifLet =>
+                AlwaysReturns(ifLet.ThenBody) && AlwaysReturns(ifLet.ElseBody),
+            IfOkStatementSyntax ifOk =>
+                AlwaysReturns(ifOk.ThenBody) && AlwaysReturns(ifOk.ElseBody),
+            _ => false
+        });
 
     private void CheckStatements(
         IReadOnlyList<StatementSyntax> statements,
@@ -598,7 +687,7 @@ public sealed class VarnTypeChecker
             return target.ReturnType;
         }
 
-        if (call.FunctionName is "list.length" or "list.get")
+        if (call.FunctionName is "list.length" or "list.get" or "list.append")
         {
             return CheckListCall(call, argumentTypes);
         }
@@ -657,12 +746,26 @@ public sealed class VarnTypeChecker
             return VarnType.I64;
         }
 
+        var elementType = argumentTypes[0].ListElementType!;
+        if (call.FunctionName == "list.append")
+        {
+            if (argumentTypes[1] != elementType)
+            {
+                Report(
+                    "VARN3015",
+                    $"Argument 1 of 'list.append' expects {elementType}, got {argumentTypes[1]}.",
+                    call.Arguments[1].Span);
+            }
+
+            return argumentTypes[0];
+        }
+
         if (argumentTypes[1] != VarnType.I64)
         {
             Report("VARN3015", $"Argument 1 of 'list.get' expects i64, got {argumentTypes[1]}.", call.Arguments[1].Span);
         }
 
-        return VarnType.Optional(argumentTypes[0].ListElementType!);
+        return VarnType.Optional(elementType);
     }
 
     private void ValidateArguments(
@@ -698,8 +801,7 @@ public sealed class VarnTypeChecker
         if (type.IsList)
         {
             var elementType = type.ListElementType!;
-            if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
-                elementType != VarnType.Bool && elementType != VarnType.String)
+            if (!elementType.IsScalar && !_records.ContainsKey(elementType.Name))
             {
                 Report("VARN3029", $"List element type '{elementType}' is not supported.", span);
             }
@@ -721,8 +823,7 @@ public sealed class VarnTypeChecker
         if (type.IsOptional)
         {
             var elementType = type.OptionalElementType!;
-            if (elementType.IsOptional || elementType is null || elementType == VarnType.Null ||
-                elementType == VarnType.Any || !KnownTypes.Contains(elementType.Name))
+            if (!elementType.IsScalar && !_records.ContainsKey(elementType.Name))
             {
                 Report("VARN3028", $"Optional element type '{elementType}' is not supported.", span);
             }

@@ -10,11 +10,11 @@ The bootstrap checker recognizes five program-visible types:
 
 `any` exists only in module signatures, currently for functions such as `io.print`. Programs cannot declare `any` slots or parameters.
 
-Appending `?` creates an optional over `i64`, `f64`, `bool`, or `str`. `some(value)` produces a present optional and `none[type]` produces an absent optional with the same exact type. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
+Appending `?` creates an optional over a scalar or a declared record. `some(value)` produces a present optional and `none[type]` produces an absent optional with the same exact type. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
 
 `result[T]` carries either a success value of type `T` or a `str` failure message, where `T` is a scalar or a declared record. `ok(value)` and `err[T](message)` construct it, and `if ok` is the only way to read either side. Optionals represent absence; results represent failure with a reason.
 
-`list[T]` is an immutable homogeneous list whose element type is one of `i64`, `f64`, `bool`, or `str`. Construction is explicit as `list[T](value0,value1)`, including `list[T]()` for an empty list. Lists contain at most 1,024 elements. Nested lists and optional list elements are intentionally unsupported in this slice.
+`list[T]` is an immutable homogeneous list whose element type is a scalar or a declared record. Construction is explicit as `list[T](value0,value1)`, including `list[T]()` for an empty list. Lists contain at most 1,024 elements. Nesting stops at one level: a list of lists, an optional list, and a list of optionals are all unsupported.
 
 `list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none[T]`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
 
@@ -40,19 +40,21 @@ The core module provides every operation below. Each is total, pure, determinist
 | Ordering | `lt`, `gt`, `lte`, `gte` | `i64`, `f64`, `str` | `bool` |
 | String | `str.length` | `str` | `i64` |
 | String | `str.concat` | `str`, `str` | `str` |
+| String | `str.from_i64`, `str.from_f64`, `str.from_bool` | `i64` / `f64` / `bool` | `str` |
 | String | `str.to_lower`, `str.to_upper` | `str` | `str` |
 | String | `str.contains`, `str.starts_with`, `str.ends_with` | `str`, `str` | `bool` |
 | List | `list.length` | `list[T]` | `i64` |
 | List | `list.get` | `list[T]`, `i64` | `T?` |
-| List | `list.contains` | `list[T]`, `T` | `bool` |
+| List | `list.append` | `list[T]`, `T` | `list[T]` |
+| List | `list.contains` | `list[T]`, `T` | `bool` (scalar `T` only) |
 
 `and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
 
-String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.length` counts UTF-16 code units in the bootstrap runtime.
+String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err[T](str.concat("over limit of ",str.from_i64(@0.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
 
 `f64` comparison follows IEEE 754 directly: every `eq`, `lt`, `gt`, `lte`, and `gte` involving NaN is `false`, and `ne` is `true`. `i64` and `str` compare by total order.
 
-`list.contains` charges one step per element examined.
+`list.contains` charges one step per element examined and is defined for scalar elements only. `list.append` returns a **new** list with one element added; the original is unchanged, and exceeding the 1,024-element ceiling fails with `VARN4007`. Together with `each`, that is how a program builds a list.
 
 These operations return `result[T]` because they can fail in-domain:
 

@@ -1,0 +1,32 @@
+# Structured input all the way down: a list of records, nested records, and a built list.
+budget[steps=600]
+
+rec Line(sku:str,qty:i64,unitCents:i64)
+rec Cart(lines:list[Line],tier:str)
+rec Invoice(subtotalCents:i64,discountCents:i64,freeSkus:list[str])
+
+fn lineTotal(@0:Line)->i64
+    ret mul(@0.qty,@0.unitCents)
+end
+
+fn main(@0:Cart)->result[Invoice]
+    var @1:i64 0
+    var @2:list[str] list[str]()
+    each @3:Line in @0.lines max 64
+        if lt(@3.qty,0)
+            ret err[Invoice](str.concat("negative quantity for sku ",@3.sku))
+        end
+        set @1 add(@1,lineTotal(@3))
+        if eq(@3.unitCents,0)
+            set @2 list.append(@2,@3.sku)
+        end
+    end
+    if eq(@0.tier,"gold")
+        if ok @4:i64 num.div(@1,10)
+            ret ok(rec[Invoice](subtotalCents=@1,discountCents=@4,freeSkus=@2))
+        else err @5:str
+            ret err[Invoice](@5)
+        end
+    end
+    ret ok(rec[Invoice](subtotalCents=@1,discountCents=0,freeSkus=@2))
+end

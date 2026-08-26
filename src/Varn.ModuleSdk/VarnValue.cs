@@ -81,15 +81,31 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         return new VarnValue(shape.Type, new VarnRecordValue(shape, Array.AsReadOnly(values)));
     }
 
+    /// <summary>
+    /// A type that a list, optional, record field, or result may contain: a scalar, or a named
+    /// record type. The SDK cannot tell a declared record from a typo, so it accepts any name that
+    /// is not a built-in or another type constructor; the checker rejects names no program declared.
+    /// </summary>
+    public static bool IsContainedType(VarnType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.IsScalar || (!type.IsList && !type.IsOptional && !type.IsResult &&
+            type != VarnType.Null && type != VarnType.Any);
+    }
+
+    /// <summary>
+    /// A record field holds a contained type, an optional of one, or a list of one. Nesting stops
+    /// there: no lists of lists, no optional optionals, no results in fields.
+    /// </summary>
     public static bool IsSupportedFieldType(VarnType type)
     {
         ArgumentNullException.ThrowIfNull(type);
         if (type.IsOptional)
         {
-            return type.OptionalElementType!.IsScalar;
+            return IsContainedType(type.OptionalElementType!);
         }
 
-        return type.IsList ? type.ListElementType!.IsScalar : type.IsScalar;
+        return type.IsList ? IsContainedType(type.ListElementType!) : IsContainedType(type);
     }
 
     public static VarnValue Null => new(VarnType.Null, null);
@@ -137,8 +153,7 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
     private static VarnType ValidateResultValueType(VarnType valueType)
     {
         ArgumentNullException.ThrowIfNull(valueType);
-        return valueType.IsScalar || (!valueType.IsList && !valueType.IsOptional && !valueType.IsResult &&
-            valueType != VarnType.Null && valueType != VarnType.Any)
+        return IsContainedType(valueType)
             ? valueType
             : throw new ArgumentException($"Type '{valueType}' cannot be a result value type.", nameof(valueType));
     }
@@ -146,7 +161,7 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
     private static VarnType ValidateOptionalElementType(VarnType elementType)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        return elementType.IsScalar
+        return IsContainedType(elementType)
             ? elementType
             : throw new ArgumentException($"Type '{elementType}' cannot be an optional element type.", nameof(elementType));
     }
@@ -154,7 +169,7 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
     private static VarnType ValidateListElementType(VarnType elementType)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        return elementType.IsScalar
+        return IsContainedType(elementType)
             ? elementType
             : throw new ArgumentException($"Type '{elementType}' cannot be a list element type.", nameof(elementType));
     }

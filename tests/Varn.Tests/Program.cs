@@ -79,7 +79,14 @@ public static class Program
             ("checker rejects unknown record types", CheckerRejectsUnknownRecordTypes),
             ("checker validates field access", CheckerValidatesFieldAccess),
             ("records are immutable and have no dynamic access", RecordsAreImmutable),
-            ("records are not optional or list element types", RecordsAreNotElementTypes),
+            ("records are valid optional and list element types", RecordsAreValidElementTypes),
+            ("checker rejects recursive records", CheckerRejectsRecursiveRecords),
+            ("nested records survive host input and output", NestedRecordsRoundTrip),
+            ("lists of records fold over structured elements", ListsOfRecordsFold),
+            ("list.append builds a list without mutation", ListAppendBuildsList),
+            ("list.append enforces the element ceiling", ListAppendEnforcesCeiling),
+            ("values can be formatted into failure messages", ValuesFormatIntoMessages),
+            ("a function needs no unreachable trailing ret", NoUnreachableTrailingRet),
             ("record construction charges one step per field", RecordConstructionChargesPerField),
             ("modules can produce record values", ModulesCanProduceRecordValues),
             ("JSON record values keep declared field order", JsonRecordValuesKeepFieldOrder),
@@ -994,7 +1001,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             rec Duplicated(a:i64,a:str)
-            rec Unsupported(a:null,b:any,c:list[list[i64]],d:i64??,e:Duplicated)
+            rec Unsupported(a:null,b:any,c:list[list[i64]],d:i64??,e:Undeclared)
             fn main()->i64
                 ret 0
             end
@@ -1004,6 +1011,42 @@ public static class Program
         Assert(
             diagnostics.Count(static diagnostic => diagnostic.Code == "VARN3038") == 5,
             FormatDiagnostics(diagnostics));
+
+        const string nested = """
+            budget[steps=20]
+            rec Addr(city:str)
+            rec Person(name:str,home:Addr,past:list[Addr],work:Addr?)
+            fn main()->i64
+                ret 0
+            end
+            """;
+        var nestedCheck = CreateEngine().Check(nested);
+        Assert(nestedCheck.IsValid, FormatDiagnostics(nestedCheck.Diagnostics));
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsRecursiveRecords()
+    {
+        const string direct = """
+            budget[steps=20]
+            rec Node(next:Node)
+            fn main()->i64
+                ret 0
+            end
+            """;
+        const string mutual = """
+            budget[steps=20]
+            rec A(b:list[B])
+            rec B(a:A)
+            fn main()->i64
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(direct).Diagnostics, "VARN3049");
+        var mutualDiagnostics = CreateEngine().Check(mutual).Diagnostics;
+        Assert(
+            mutualDiagnostics.Count(static diagnostic => diagnostic.Code == "VARN3049") == 2,
+            FormatDiagnostics(mutualDiagnostics));
         return Task.CompletedTask;
     }
 
@@ -1067,9 +1110,9 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static Task RecordsAreNotElementTypes()
+    private static Task RecordsAreValidElementTypes()
     {
-        const string source = """
+        const string allowed = """
             budget[steps=20]
             rec Pair(a:i64)
             fn main()->i64
@@ -1078,7 +1121,20 @@ public static class Program
                 ret 0
             end
             """;
-        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        var check = CreateEngine().Check(allowed);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+
+        const string tooDeep = """
+            budget[steps=20]
+            rec Pair(a:i64)
+            fn main()->i64
+                let @0:Pair?? none[Pair?]
+                let @1:list[list[Pair]] list[list[Pair]]()
+                let @2:Missing? none[Missing]
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(tooDeep).Diagnostics;
         AssertHasDiagnostic(diagnostics, "VARN3028");
         AssertHasDiagnostic(diagnostics, "VARN3029");
         return Task.CompletedTask;
@@ -2108,6 +2164,195 @@ public static class Program
             ret err[Settlement]("unreachable")
         end
         """;
+
+    private static async Task NestedRecordsRoundTrip()
+    {
+        const string source = """
+            budget[steps=300]
+            rec Addr(city:str,zip:str)
+            rec Person(name:str,home:Addr,alias:str?)
+            rec Label(text:str)
+            fn main(@0:Person)->Label
+                if let @1:str @0.alias
+                    ret rec[Label](text=str.concat(@1,str.concat(" of ",@0.home.city)))
+                end
+                ret rec[Label](text=str.concat(@0.name,str.concat(" of ",@0.home.city)))
+            end
+            """;
+        var named = await RunWithInputAsync(
+            source,
+            """{"name":"ada","home":{"city":"London","zip":"E1"},"alias":null}""").ConfigureAwait(false);
+        Assert(named.IsSuccess, FormatDiagnostics(named.Diagnostics));
+        Assert(
+            named.ReturnValue?.AsRecord().GetField("text").Value as string == "ada of London",
+            "Expected a nested field read through two records.");
+
+        var aliased = await RunWithInputAsync(
+            source,
+            """{"name":"ada","home":{"city":"London","zip":"E1"},"alias":"byron"}""").ConfigureAwait(false);
+        Assert(
+            aliased.ReturnValue?.AsRecord().GetField("text").Value as string == "byron of London",
+            "Expected an optional record field to bind.");
+
+        var badNesting = await RunWithInputAsync(
+            source,
+            """{"name":"ada","home":{"city":"London"},"alias":null}""").ConfigureAwait(false);
+        AssertHasDiagnostic(badNesting.Diagnostics, "VARN6007");
+        Assert(
+            badNesting.Diagnostics.Single(static diagnostic => diagnostic.Code == "VARN6007").Message
+                .Contains("home.zip", StringComparison.Ordinal),
+            "Expected the nested path to be named.");
+    }
+
+    private static async Task ListsOfRecordsFold()
+    {
+        const string source = """
+            budget[steps=400]
+            rec Line(sku:str,qty:i64,priceCents:i64)
+            rec Cart(lines:list[Line])
+            rec Total(cents:i64)
+            fn main(@0:Cart)->Total
+                var @1:i64 0
+                each @2:Line in @0.lines max 32
+                    set @1 add(@1,mul(@2.qty,@2.priceCents))
+                end
+                ret rec[Total](cents=@1)
+            end
+            """;
+        var result = await RunWithInputAsync(
+            source,
+            """{"lines":[{"sku":"A","qty":2,"priceCents":500},{"sku":"B","qty":1,"priceCents":1250}]}""")
+            .ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsRecord().GetField("cents").AsI64() == 2250, "Expected 2 x 500 plus 1250.");
+
+        var badElement = await RunWithInputAsync(
+            source,
+            """{"lines":[{"sku":"A","qty":"2","priceCents":500}]}""").ConfigureAwait(false);
+        AssertHasDiagnostic(badElement.Diagnostics, "VARN6008");
+        Assert(
+            badElement.Diagnostics.Single(static diagnostic => diagnostic.Code == "VARN6008").Message
+                .Contains("lines[0].qty", StringComparison.Ordinal),
+            "Expected the failing element path to be named.");
+    }
+
+    private static async Task ListAppendBuildsList()
+    {
+        const string source = """
+            budget[steps=400]
+            rec Nums(values:list[i64])
+            rec Kept(values:list[i64])
+            fn main(@0:Nums)->Kept
+                var @1:list[i64] list[i64]()
+                each @2:i64 in @0.values max 32
+                    if gt(@2,10)
+                        set @1 list.append(@1,@2)
+                    end
+                end
+                ret rec[Kept](values=@1)
+            end
+            """;
+        var result = await RunWithInputAsync(source, """{"values":[5,15,25,3,40]}""").ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        var kept = result.ReturnValue!.Value.AsRecord().GetField("values").AsList()
+            .Select(static value => value.AsI64()).ToArray();
+        Assert(kept.SequenceEqual([15L, 25L, 40L]), $"Expected 15,25,40, got {string.Join(",", kept)}.");
+
+        const string mismatch = """
+            budget[steps=40]
+            fn main()->i64
+                let @0:list[i64] list.append(list[i64](1),"x")
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(mismatch).Diagnostics, "VARN3015");
+    }
+
+    private static async Task ListAppendEnforcesCeiling()
+    {
+        var elements = string.Join(',', Enumerable.Repeat("1", VarnValue.MaxListElements));
+        var source = $$"""
+            budget[steps=5000]
+            fn main()->i64
+                let @0:list[i64] list[i64]({{elements}})
+                let @1:list[i64] list.append(@0,2)
+                ret list.length(@1)
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source, new VarnRunOptions { MaxSteps = 100_000 })
+            .ConfigureAwait(false);
+        AssertHasDiagnostic(result.Diagnostics, "VARN4007");
+    }
+
+    private static async Task ValuesFormatIntoMessages()
+    {
+        const string source = """
+            budget[steps=200]
+            rec Order(totalCents:i64,limitCents:i64)
+            rec Receipt(totalCents:i64)
+            fn main(@0:Order)->result[Receipt]
+                if gt(@0.totalCents,@0.limitCents)
+                    ret err[Receipt](str.concat("over limit of ",str.from_i64(@0.limitCents)))
+                end
+                ret ok(rec[Receipt](totalCents=@0.totalCents))
+            end
+            """;
+        var rejected = await RunWithInputAsync(source, """{"totalCents":15000,"limitCents":10000}""")
+            .ConfigureAwait(false);
+        Assert(rejected.IsSuccess, FormatDiagnostics(rejected.Diagnostics));
+        Assert(
+            rejected.ReturnValue!.Value.AsResult().Value.Value as string == "over limit of 10000",
+            "Expected the failing value inside the message.");
+
+        Assert(await EvaluateBoolAsync("""eq(str.from_f64(1.5),"1.5")""").ConfigureAwait(false) == 1,
+            "Expected invariant f64 formatting.");
+        Assert(await EvaluateBoolAsync("""eq(str.from_bool(true),"true")""").ConfigureAwait(false) == 1,
+            "Expected bool formatting.");
+    }
+
+    private static Task NoUnreachableTrailingRet()
+    {
+        const string everyBranchReturns = """
+            budget[steps=100]
+            fn main()->i64
+                if true
+                    ret 1
+                else
+                    ret 2
+                end
+            end
+            """;
+        const string canFallThrough = """
+            budget[steps=100]
+            fn main()->i64
+                if true
+                    ret 1
+                end
+            end
+            """;
+        const string loopDoesNotCount = """
+            budget[steps=100]
+            fn main()->i64
+                loop @0:i64 from 0 to 2 max 2
+                    ret 1
+                end
+            end
+            """;
+        const string emptyElseDoesNotCount = """
+            budget[steps=100]
+            fn main()->i64
+                if true
+                    ret 1
+                else
+                end
+            end
+            """;
+        Assert(CreateEngine().Check(everyBranchReturns).IsValid, "Expected both-branches-return to be valid.");
+        AssertHasDiagnostic(CreateEngine().Check(canFallThrough).Diagnostics, "VARN3009");
+        AssertHasDiagnostic(CreateEngine().Check(loopDoesNotCount).Diagnostics, "VARN3009");
+        AssertHasDiagnostic(CreateEngine().Check(emptyElseDoesNotCount).Diagnostics, "VARN3009");
+        return Task.CompletedTask;
+    }
 
     private static async Task RuntimeExecutesMilestone()
     {

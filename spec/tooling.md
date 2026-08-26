@@ -28,7 +28,8 @@ The process exit status remains meaningful: `0` means success, `1` means the Var
 `check` adds `contract`, which is `null` when validation fails. For a valid program it reports what the entry point declares:
 
 - `contract.input`: `null` when the program takes no input, otherwise an object with the record `type` and its `fields` as `{"name","type"}` pairs **in declared order**. This is the shape the host must supply.
-- `contract.result`: the declared result type name, `i64` or a record name.
+- `contract.result`: the declared result type name, `i64`, a record name, or a `result[...]` of either.
+- `contract.records`: every record the program declares, ordered by name, each with its `fields` in declared order. A nested or list element type name such as `list[Line]` is resolved by looking `Line` up here, so a host never has to parse the source.
 
 An agent reads `contract` to learn what to feed a program without parsing its source.
 

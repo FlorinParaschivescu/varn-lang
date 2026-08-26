@@ -64,15 +64,20 @@ public static class VarnJsonFormatter
 
     private static VarnContractResponse MapContract(ProgramSyntax program)
     {
+        var shapes = VarnProgramContract.RecordShapes(program);
         var input = VarnProgramContract.InputShape(program);
         return new VarnContractResponse(
-            input is null
-                ? null
-                : new VarnRecordContractResponse(
-                    input.Name,
-                    [.. input.Fields.Select(static field => new VarnFieldResponse(field.Name, field.Type.Name))]),
-            VarnProgramContract.ResultType(program)?.Name ?? VarnType.I64.Name);
+            input is null ? null : MapRecordContract(input),
+            VarnProgramContract.ResultType(program)?.Name ?? VarnType.I64.Name,
+            // Every declared record travels with the contract so a host can resolve a nested or
+            // list element type name without parsing the source.
+            [.. shapes.Values
+                .OrderBy(static shape => shape.Name, StringComparer.Ordinal)
+                .Select(MapRecordContract)]);
     }
+
+    private static VarnRecordContractResponse MapRecordContract(VarnRecordShape shape) =>
+        new(shape.Name, [.. shape.Fields.Select(static field => new VarnFieldResponse(field.Name, field.Type.Name))]);
 
     private static IReadOnlyList<VarnDiagnosticResponse> MapDiagnostics(IReadOnlyList<Diagnostic> diagnostics) =>
         diagnostics.Select(static diagnostic =>

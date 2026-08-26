@@ -14,5 +14,4 @@ fn main()->i64
     else
         ret 0
     end
-    ret 0
 end

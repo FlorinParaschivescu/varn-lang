@@ -34,7 +34,8 @@ public sealed record VarnRecordContractResponse(
 
 public sealed record VarnContractResponse(
     [property: JsonPropertyName("input")] VarnRecordContractResponse? Input,
-    [property: JsonPropertyName("result")] string Result);
+    [property: JsonPropertyName("result")] string Result,
+    [property: JsonPropertyName("records")] IReadOnlyList<VarnRecordContractResponse> Records);
 
 public sealed record VarnCheckResponse(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,

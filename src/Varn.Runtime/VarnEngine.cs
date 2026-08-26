@@ -45,7 +45,10 @@ public sealed class VarnEngine
             return new VarnRunResult(null, check.Diagnostics, 0);
         }
 
-        var binding = VarnInputBinder.Bind(VarnProgramContract.InputShape(check.Program), options.Input);
+        var binding = VarnInputBinder.Bind(
+            VarnProgramContract.InputShape(check.Program),
+            VarnProgramContract.RecordShapes(check.Program),
+            options.Input);
         if (!binding.IsValid)
         {
             return new VarnRunResult(null, binding.Diagnostics, 0);
@@ -346,6 +349,22 @@ public sealed class VarnEngine
             if (call.FunctionName == "list.length")
             {
                 return VarnValue.From((long)arguments[0].AsList().Count);
+            }
+
+            if (call.FunctionName == "list.append")
+            {
+                var values = arguments[0].AsList();
+                if (values.Count >= VarnValue.MaxListElements)
+                {
+                    throw new VarnExecutionException(
+                        "VARN4007",
+                        $"Appending would exceed the {VarnValue.MaxListElements}-element list ceiling.",
+                        call.Span);
+                }
+
+                return VarnValue.FromList(
+                    arguments[0].Type.ListElementType!,
+                    [.. values, arguments[1]]);
             }
 
             if (call.FunctionName == "list.get")

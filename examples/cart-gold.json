@@ -1,0 +1,8 @@
+{
+  "lines": [
+    { "sku": "WIDGET", "qty": 2, "unitCents": 500 },
+    { "sku": "GIZMO", "qty": 1, "unitCents": 1250 },
+    { "sku": "SAMPLE", "qty": 3, "unitCents": 0 }
+  ],
+  "tier": "gold"
+}

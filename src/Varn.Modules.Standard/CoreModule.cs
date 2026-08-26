@@ -203,6 +203,18 @@ public sealed class CoreModule : IVarnModule
             static (_, arguments, _) => ValueTask.FromResult(
                 VarnValue.From(string.Concat(Text(arguments[0]), Text(arguments[1])))));
         builder.Function(
+            new VarnFunctionSignature("str.from_i64", [VarnType.I64], VarnType.String),
+            static (_, arguments, _) => ValueTask.FromResult(
+                VarnValue.From(arguments[0].AsI64().ToString(CultureInfo.InvariantCulture))));
+        builder.Function(
+            new VarnFunctionSignature("str.from_f64", [VarnType.F64], VarnType.String),
+            static (_, arguments, _) => ValueTask.FromResult(
+                VarnValue.From(arguments[0].AsF64().ToString("R", CultureInfo.InvariantCulture))));
+        builder.Function(
+            new VarnFunctionSignature("str.from_bool", [VarnType.Bool], VarnType.String),
+            static (_, arguments, _) => ValueTask.FromResult(
+                VarnValue.From(arguments[0].AsBool() ? "true" : "false")));
+        builder.Function(
             new VarnFunctionSignature("str.to_lower", [VarnType.String], VarnType.String),
             static (_, arguments, _) => ValueTask.FromResult(VarnValue.From(Text(arguments[0]).ToLowerInvariant())));
         builder.Function(

@@ -388,8 +388,21 @@ public static class VarnParser
             while (Current.Kind == TokenKind.Dot)
             {
                 MoveNext();
-                var field = MatchSimpleName("field");
-                expression = new FieldExpressionSyntax(expression, field.Text, field.Span);
+                // The lexer folds dots into identifiers so module names like io.print stay one
+                // token, which makes a chained access such as @0.home.city arrive as a single
+                // "home.city" identifier. Field names may not contain dots, so splitting here is
+                // unambiguous and rebuilds one access per segment.
+                var field = MatchName();
+                foreach (var segment in field.Text.Split('.'))
+                {
+                    if (segment.Length == 0)
+                    {
+                        Report("VARN2007", "A field name must not be empty.", field.Span);
+                        continue;
+                    }
+
+                    expression = new FieldExpressionSyntax(expression, segment, field.Span);
+                }
             }
 
             return expression;

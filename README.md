@@ -52,7 +52,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 90 language/runtime tests and 10 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 97 language/runtime tests and 10 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -137,6 +137,24 @@ end
 ```
 
 That distinction is the point: a rule that did not hold is not a broken run. `num.div`, `num.mod`, `num.to_i64`, `str.to_i64`, and `str.to_f64` return results for the same reason. See [examples/rule-with-failure.varn](examples/rule-with-failure.varn).
+
+## Structured data
+
+A record field, a list element, and an optional may each hold another declared record, so real shapes go in and come out:
+
+```varn
+rec Line(sku:str,qty:i64,unitCents:i64)
+rec Cart(lines:list[Line],tier:str)
+
+each @3:Line in @0.lines max 64
+    set @1 add(@1,mul(@3.qty,@3.unitCents))
+    if eq(@3.unitCents,0)
+        set @2 list.append(@2,@3.sku)
+    end
+end
+```
+
+`list.append` returns a new list, so `each` plus a mutable slot is how a program builds one. Access chains through nesting as `@0.home.city`. A record that can reach itself is rejected (`VARN3049`), because no host input could supply it. See [examples/cart-lines.varn](examples/cart-lines.varn).
 
 ## Host input: one program, many inputs
 
@@ -268,7 +286,7 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: explicit `result` values for expected failures; a standard library of arithmetic, boolean, comparison, string, list, conversion, and parsing operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: explicit `result` values for expected failures; a standard library of arithmetic, boolean, comparison, string, list, conversion, and parsing operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction, nesting, and static field access; lists of records and list building; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
 Intentionally deferred: structured result failure types, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 

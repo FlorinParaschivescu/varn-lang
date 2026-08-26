@@ -43,7 +43,7 @@ var @0:i64 0
 set @0 add(@0,1)
 ```
 
-A slot must be declared before use and cannot be declared twice while an existing slot with the same numeric identity is in scope. Parameters, `let` slots, and loop iterators are immutable. An assignment target must be a visible mutable slot, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable slot; slots declared inside those blocks do not escape. Every function body must end in `ret`, and its expression must exactly match the declared return type.
+A slot must be declared before use and cannot be declared twice while an existing slot with the same numeric identity is in scope. Parameters, `let` slots, and loop iterators are immutable. An assignment target must be a visible mutable slot, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable slot; slots declared inside those blocks do not escape. Every path through a function body must reach `ret`, and its expression must exactly match the declared return type. A body that ends in `ret` always qualifies; so does one whose every branch returns, which is why no unreachable trailing `ret` is needed. A conditional counts only when both arms exist and both return. A `loop` or `each` never counts, because it may run zero times. `VARN3009` reports a body that can finish without returning.
 
 Mutation diagnostics preserve the existing slot rules: `VARN3005` reports duplicate declarations and `VARN3010` reports unknown or out-of-scope targets. `VARN3024` reports assignment to an immutable slot, and `VARN3025` reports an assignment type mismatch.
 
@@ -134,7 +134,9 @@ A record declaration is a program-level directive. It names a closed structure a
 rec Order(items:list[i64],tier:str)
 ```
 
-Record names are ordinal and unique across the program. They must not shadow a built-in type name (`VARN3036`). Field names must be unique inside their record (`VARN3037`). A field type must be a scalar, an optional scalar, or a list of scalars (`VARN3038`); nested records are intentionally unsupported in this slice. Declaration order defines the record's field order, and that order is the only field order the runtime, the canonical projection, and JSON results ever use.
+Record names are ordinal and unique across the program. They must not shadow a built-in type name (`VARN3036`). Field names must be unique inside their record (`VARN3037`). A field type must be a *contained* type -- a scalar or another declared record -- or an optional or list of one (`VARN3038`). Nesting stops there: no lists of lists, no optional optionals, no results in fields.
+
+A record that can reach itself through its fields, directly or through another record, describes a value of unbounded size and is rejected with `VARN3049`. Declaration order defines the record's field order, and that order is the only field order the runtime, the canonical projection, and JSON results ever use.
 
 Construction names the record and sets every declared field exactly once:
 
@@ -156,7 +158,10 @@ A field is read with a postfix `.name` on a record-valued expression:
 ```varn
 let @1:list[i64] @0.items
 let @2:i64 settle(@0).discount
+let @3:str @0.home.city
 ```
+
+Access chains through nested records, and each step is one operation.
 
 Field access is static. The target must be a record (`VARN3043`) and the field must be declared (`VARN3044`); there is no dynamic property lookup, no field enumeration, and no reflection over a record. Records are immutable: there is no field assignment form, and a whole-record `set` still requires a mutable slot.
 
