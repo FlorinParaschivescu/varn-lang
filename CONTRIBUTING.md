@@ -11,18 +11,19 @@ Varn is at the bootstrap stage. Small, end-to-end changes are more useful than b
 
 ## Build and test
 
-The project targets .NET 10 with C# 14 and uses no third-party runtime or test packages.
+The project targets .NET 10 with C# 14. The language/runtime test runner uses no third-party test framework; the adapter tests use the official MCP C# client.
 
 ```sh
 dotnet build Varn.slnx
 dotnet run --project tests/Varn.Tests --no-build
+dotnet run --project tests/Varn.Adapter.Tests --no-build
 ```
 
 PowerShell users can run `./scripts/test.ps1`; Unix-like shells can run `./scripts/test.sh`.
 
 ## Change shape
 
-A language change normally touches `Varn.Syntax`, `Varn.Lexer`, `Varn.Parser`, `Varn.TypeSystem`, `Varn.Runtime`, the specification, and tests. A host integration should normally be a module that references `Varn.ModuleSdk`, not a dependency of the core runtime.
+A language change normally touches `Varn.Syntax`, `Varn.Lexer`, `Varn.Parser`, `Varn.TypeSystem`, `Varn.Runtime`, the specification, interfaces, and tests. A host integration should normally be a module that references `Varn.ModuleSdk`, not a dependency of the core runtime. An agent-protocol integration belongs outside the runtime and must preserve the existing structured contract.
 
 Use ordinal comparison for identifiers and capability/effect names, invariant culture for numeric parsing and formatting, and stable ordering in canonical output. Make implicit conversion and ambient host access errors.
 

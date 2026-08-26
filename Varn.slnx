@@ -4,6 +4,7 @@
     <Project Path="examples/modules/Varn.ExampleModule/Varn.ExampleModule.csproj" />
   </Folder>
   <Folder Name="/src/" />
+  <Project Path="src/Varn.Adapter/Varn.Adapter.csproj" />
   <Project Path="src/Varn.Cli/Varn.Cli.csproj" />
   <Project Path="src/Varn.Lexer/Varn.Lexer.csproj" />
   <Project Path="src/Varn.Modules.Standard/Varn.Modules.Standard.csproj" />
@@ -11,6 +12,8 @@
   <Project Path="src/Varn.Parser/Varn.Parser.csproj" />
   <Project Path="src/Varn.Runtime/Varn.Runtime.csproj" />
   <Project Path="src/Varn.Syntax/Varn.Syntax.csproj" />
+  <Project Path="src/Varn.ToolHost/Varn.ToolHost.csproj" />
   <Project Path="src/Varn.TypeSystem/Varn.TypeSystem.csproj" />
+  <Project Path="tests/Varn.Adapter.Tests/Varn.Adapter.Tests.csproj" />
   <Project Path="tests/Varn.Tests/Varn.Tests.csproj" />
 </Solution>

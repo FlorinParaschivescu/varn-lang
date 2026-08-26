@@ -2,17 +2,30 @@
 
 Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off in this file as it lands.
 
-## Current focus — AI tool adapter
+## Current focus — explicit mutable slots
 
-The next vertical slice is a thin local adapter over the JSON schema v1 contract. Its goal is to let Codex and other AI systems call Varn as a tool without parsing console prose or receiving ambient host access.
+The next vertical slice makes bounded loops useful for deterministic transformations while keeping mutation visible and statically checked.
 
-- [ ] Specify versioned requests for `check`, `inspect`, and `run`.
-- [ ] Implement a local tool host that delegates to the existing Varn engine.
-- [ ] Require explicit capabilities and resource ceilings for every execution request.
-- [ ] Add end-to-end adapter tests, including invalid source and denied capabilities.
-- [ ] Dogfood the adapter from Codex on a generate-check-repair-run example.
+- [ ] Specify distinct mutable declaration and assignment syntax; keep `let` immutable.
+- [ ] Add mutable-slot and assignment nodes to the lexer, parser, and AST.
+- [ ] Reject assignment to immutable, unknown, out-of-scope, or differently typed slots.
+- [ ] Execute scoped mutation with deterministic step accounting.
+- [ ] Extend canonical inspection, examples, and success/rejection tests.
+- [ ] Exercise a bounded-loop accumulator through the MCP adapter.
 
-Exit criterion: an AI agent can invoke all three operations through structured tool calls, receive schema-versioned results, and cannot execute an undeclared or ungranted capability.
+Exit criterion: Varn can compute an accumulator across a statically bounded loop, while every invalid mutation is rejected before execution.
+
+## Completed — local AI tool adapter
+
+The first adapter slice exposes Varn through a local Model Context Protocol server without giving the language core ambient host access.
+
+- [x] Specify versioned requests for `check`, `inspect`, and `run`.
+- [x] Implement a local tool host that delegates to the existing Varn engine.
+- [x] Require explicit capabilities and resource ceilings for every execution request.
+- [x] Add end-to-end adapter tests, including invalid source and denied capabilities.
+- [x] Dogfood the adapter from Codex on a generate-check-repair-run example.
+
+Exit criterion met: an AI agent can invoke all three operations through structured tool calls, receive schema-versioned results, and cannot execute an undeclared or ungranted capability.
 
 ## M0 — Repository ready for collaboration
 
@@ -78,7 +91,7 @@ In parallel with M1–M3:
 
 1. [x] Keep the CLI stable and machine-readable.
 2. [x] Add structured JSON diagnostics and execution results.
-3. [ ] Build a thin tool adapter around `check`, `inspect`, and `run`.
+3. [x] Build a thin tool adapter around `check`, `inspect`, and `run`.
 4. [ ] Package authoring guidance as a Codex skill after the syntax stabilizes.
 5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares token cost and success rate.
 
