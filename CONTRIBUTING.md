@@ -28,4 +28,6 @@ Use ordinal comparison for identifiers and capability/effect names, invariant cu
 
 Keep pull requests focused, describe observable behavior, list any new diagnostics, and include the commands used to verify the change.
 
-The project license has not yet been selected. External contributions should wait until a license and contributor policy are committed.
+## Contribution terms
+
+Varn is distributed under the [Apache License 2.0](LICENSE). Unless explicitly stated otherwise, an intentionally submitted contribution is provided under the same license, as described by section 5 of Apache-2.0. Contributors must have the right to submit their work and should identify third-party code or assets in the pull request.

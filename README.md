@@ -135,6 +135,6 @@ See [ROADMAP.md](ROADMAP.md) for the proposed sequence. Features should be added
 
 ## Status
 
-Varn is pre-alpha research software. Its syntax, JSON contract, and module ABI may change with explicit versioning. The repository does not yet include a license; one must be selected before accepting outside contributions or publishing a release.
+Varn is pre-alpha research software. Its syntax, JSON contract, and module ABI may change with explicit versioning. Varn is licensed under the [Apache License 2.0](LICENSE).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.

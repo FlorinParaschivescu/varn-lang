@@ -1,10 +1,22 @@
 # Varn roadmap
 
-Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests.
+Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off in this file as it lands.
+
+## Current focus — AI tool adapter
+
+The next vertical slice is a thin local adapter over the JSON schema v1 contract. Its goal is to let Codex and other AI systems call Varn as a tool without parsing console prose or receiving ambient host access.
+
+- [ ] Specify versioned requests for `check`, `inspect`, and `run`.
+- [ ] Implement a local tool host that delegates to the existing Varn engine.
+- [ ] Require explicit capabilities and resource ceilings for every execution request.
+- [ ] Add end-to-end adapter tests, including invalid source and denied capabilities.
+- [ ] Dogfood the adapter from Codex on a generate-check-repair-run example.
+
+Exit criterion: an AI agent can invoke all three operations through structured tool calls, receive schema-versioned results, and cannot execute an undeclared or ungranted capability.
 
 ## M0 — Repository ready for collaboration
 
-- [ ] Select an open-source license and contribution policy.
+- [x] Select the Apache License 2.0 and document the contribution policy.
 - [x] Add GitHub CI for .NET 10 build, tests, and formatting.
 - [x] Add issue and pull-request templates.
 - [x] Publish the architectural invariants in an initial design record.
