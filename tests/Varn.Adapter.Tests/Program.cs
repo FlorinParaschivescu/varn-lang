@@ -25,7 +25,7 @@ public static class Program
             ("adapter denies an ungranted program capability", RunDeniesMissingCapability),
             ("adapter captures successful execution", RunCapturesSuccessfulExecution),
             ("adapter enforces output ceilings", RunEnforcesOutputCeiling),
-            ("MCP stdio host supports mutable check-inspect-run", McpHostSupportsCheckRepairRun)
+            ("MCP stdio host supports optional check-inspect-run", McpHostSupportsCheckRepairRun)
         };
 
         var failures = 0;
@@ -131,6 +131,9 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("loop @1:i64 from 0 to 4 max 4", StringComparison.Ordinal) is true,
             "Expected compact Varn syntax guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("if let @1:i64 @0", StringComparison.Ordinal) is true,
+            "Expected compact optional syntax guidance.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
@@ -156,28 +159,36 @@ public static class Program
 
         const string repairedSource = """
             budget[steps=100]
-            fn main()->i64
-                var @0:i64 0
-                loop @1:i64 from 0 to 4 max 4
-                    set @0 add(@0,@1)
+            fn maybe(@0:bool)->i64?
+                if @0
+                    ret some(42)
                 end
-                ret @0
+                ret none[i64]
+            end
+            fn main()->i64
+                let @0:i64? maybe(true)
+                if let @1:i64 @0
+                    ret @1
+                else
+                    ret 0
+                end
+                ret 0
             end
             """;
         var repairedCheckResult = await client.CallToolAsync(
             "varn_check",
             new Dictionary<string, object?> { ["source"] = repairedSource }).ConfigureAwait(false);
         var repairedCheck = StructuredRoot(repairedCheckResult.StructuredContent);
-        Assert(repairedCheck.GetProperty("success").GetBoolean(), "Expected MCP check to accept repaired mutable source.");
+        Assert(repairedCheck.GetProperty("success").GetBoolean(), "Expected MCP check to accept repaired optional source.");
 
         var inspectResult = await client.CallToolAsync(
             "varn_inspect",
             new Dictionary<string, object?> { ["source"] = repairedSource }).ConfigureAwait(false);
         var inspect = StructuredRoot(inspectResult.StructuredContent);
-        Assert(inspect.GetProperty("success").GetBoolean(), "Expected MCP inspect to accept mutable source.");
+        Assert(inspect.GetProperty("success").GetBoolean(), "Expected MCP inspect to accept optional source.");
         Assert(
-            inspect.GetProperty("canonical").GetString()?.Contains("S(@0", StringComparison.Ordinal) is true,
-            "Expected MCP canonical inspection to include assignment.");
+            inspect.GetProperty("canonical").GetString()?.Contains("J(@1:i64,V[@0])", StringComparison.Ordinal) is true,
+            "Expected MCP canonical inspection to include safe optional extraction.");
 
         var runResult = await client.CallToolAsync(
             "varn_run",
@@ -189,8 +200,8 @@ public static class Program
                 ["maxOutputCharacters"] = 100
             }).ConfigureAwait(false);
         var run = StructuredRoot(runResult.StructuredContent);
-        Assert(run.GetProperty("success").GetBoolean(), "Expected MCP run to accept repaired mutable source.");
-        Assert(run.GetProperty("returnValue").GetProperty("value").GetInt64() == 6, "Expected MCP accumulator value 6.");
+        Assert(run.GetProperty("success").GetBoolean(), "Expected MCP run to accept repaired optional source.");
+        Assert(run.GetProperty("returnValue").GetProperty("value").GetInt64() == 42, "Expected MCP optional value 42.");
     }
 
     private static string FindToolHostExecutable()

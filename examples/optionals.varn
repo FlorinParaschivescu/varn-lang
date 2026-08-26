@@ -1,0 +1,18 @@
+budget[steps=100]
+
+fn maybe(@0:bool)->i64?
+    if @0
+        ret some(42)
+    end
+    ret none[i64]
+end
+
+fn main()->i64
+    let @0:i64? maybe(true)
+    if let @1:i64 @0
+        ret @1
+    else
+        ret 0
+    end
+    ret 0
+end

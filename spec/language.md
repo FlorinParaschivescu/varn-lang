@@ -35,6 +35,29 @@ Mutation diagnostics preserve the existing slot rules: `VARN3005` reports duplic
 
 Calls use a single canonical form: `name(arg0,arg1)`. The checker resolves program functions first and then module functions by exact parameter types. There are no implicit conversions.
 
+## Typed optional values
+
+An optional type adds `?` to one supported scalar type. Construction is explicit: `some(expression)` contains a value and `none[type]` represents a typed absence.
+
+```varn
+let @0:i64? some(42)
+let @1:i64? none[i64]
+```
+
+Optional construction does not convert values implicitly. For example, `some(true)` has type `bool?` and cannot initialize an `i64?` slot. The supported element types are `i64`, `f64`, `bool`, and `str`; `null?`, `any?`, and nested optionals are rejected with `VARN3028`.
+
+`if let` is the only operation that extracts a contained value:
+
+```varn
+if let @2:i64 @0
+    ret @2
+else
+    ret 0
+end
+```
+
+The source expression must be optional (`VARN3026`) and the binding type must exactly match its element type (`VARN3027`). The binding is immutable, exists only in the present branch, and cannot escape. The absent branch never creates the binding. There is no unchecked optional access operation.
+
 ## Conditions
 
 An `if` condition must have type `bool`. Branch-local slots do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.

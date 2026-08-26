@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 23 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 33 language/runtime tests and 6 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -109,7 +109,17 @@ The adapter accepts source text rather than paths, loads no external assemblies,
 
 An agent calls `varn_check` with generated source, repairs stable diagnostics, optionally calls `varn_inspect`, then calls `varn_run` only when execution is required. The run request must grant the smallest capability set and supply bounded resources.
 
-The adapter has been exercised through a real Codex check–repair–run workflow as well as the official MCP C# client. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
+The adapter has been exercised through real Codex check–repair–inspect–run workflows as well as the official MCP C# client. `AGENTS.md` gives Codex durable project-specific build, test, and safety instructions.
+
+## Practical test readiness
+
+- Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, and module/API contract experiments.
+- After typed lists: small bounded data-transformation benchmarks against other languages.
+- After records and `Result`: practical structured workflows with explicit failure handling.
+- After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
+- After process isolation: community execution of modules that are not already trusted host code.
+
+The current tests are real end-to-end protocol tests, but Varn remains too small for a representative application benchmark. The roadmap treats each readiness gate as an explicit deliverable.
 
 ## Modules first
 
@@ -149,9 +159,9 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
-Intentionally deferred: optionals, lists, records, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
+Intentionally deferred: lists, records, `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 
 See [ROADMAP.md](ROADMAP.md) for the living sequence. Features are added one vertical slice at a time, with checker, runtime, interfaces, specification, and tests updated together.
 

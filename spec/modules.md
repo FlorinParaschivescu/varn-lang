@@ -39,6 +39,22 @@ The caller declares `![network]`, the program declares `cap[network.http]`, and 
 
 Embed a module with `engine.AddModule(new TextModule())`, or load a compiled assembly with `varn run program.varn --module ./Example.Text.dll`. Overloads resolve by exact argument types; duplicate name-and-parameter signatures are rejected.
 
+## Optional values
+
+Module signatures use `VarnType.Optional(elementType)`. Handlers return `VarnValue.Some(value)` or `VarnValue.None(elementType)`:
+
+```csharp
+builder.Function(
+    new VarnFunctionSignature(
+        "cache.lookup",
+        [VarnType.String],
+        VarnType.Optional(VarnType.String)),
+    static (_, arguments, _) => ValueTask.FromResult(
+        VarnValue.None(VarnType.String)));
+```
+
+`VarnValue.IsSome` tests presence and `AsOptionalValue()` extracts a present value in trusted host code. The SDK factories reject `null`, `any`, and nested optional element types. Varn programs do not receive an unchecked extraction function; they use `if let`.
+
 ## Security boundary
 
 An `IVarnModule` assembly executes as trusted .NET host code. Varn gates calls into it, but cannot stop malicious initialization or handler code from using ambient .NET APIs. Do not load untrusted assemblies.

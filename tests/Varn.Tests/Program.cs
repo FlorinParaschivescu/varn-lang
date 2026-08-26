@@ -47,6 +47,16 @@ public static class Program
             ("checker rejects assignment outside declaration scope", CheckerRejectsOutOfScopeAssignment),
             ("checker rejects assignment with a different type", CheckerRejectsDifferentAssignmentType),
             ("checker rejects duplicate mutable slots", CheckerRejectsDuplicateMutableSlot),
+            ("optional type and value contracts are explicit", OptionalTypeAndValueContractsAreExplicit),
+            ("optionals branch over present values", OptionalsBranchOverPresentValues),
+            ("optionals branch over absent values", OptionalsBranchOverAbsentValues),
+            ("modules can produce optional values", ModulesCanProduceOptionalValues),
+            ("checker requires an optional if-let source", CheckerRequiresOptionalIfLetSource),
+            ("checker matches the if-let binding type", CheckerMatchesIfLetBindingType),
+            ("optional bindings do not escape", OptionalBindingDoesNotEscape),
+            ("optional bindings are immutable", OptionalBindingIsImmutable),
+            ("checker rejects unsupported optional element types", CheckerRejectsUnsupportedOptionalElementTypes),
+            ("checker requires exact optional construction types", CheckerRequiresExactOptionalConstructionTypes),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -77,10 +87,13 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nif true\nloop @1:i64 from 0 to 1 max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nif true\nloop @1:i64 from 0 to 1 max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Question), "Expected an optional type marker.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Some), "Expected a some token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.None), "Expected a none token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.If), "Expected an if token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Loop), "Expected a loop token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Max), "Expected a max token.");
@@ -345,6 +358,214 @@ public static class Program
         return Task.CompletedTask;
     }
 
+    private static Task OptionalTypeAndValueContractsAreExplicit()
+    {
+        var optionalType = VarnType.Optional(VarnType.I64);
+        Assert(optionalType.Name == "i64?", $"Expected i64?, got {optionalType}.");
+        Assert(optionalType.IsOptional, "Expected the type to be optional.");
+        Assert(optionalType.OptionalElementType == VarnType.I64, "Expected i64 as the optional element type.");
+        Assert(VarnType.Parse("i64?") == optionalType, "Expected optional parsing to be canonical.");
+
+        var some = VarnValue.Some(VarnValue.From(42L));
+        Assert(some.Type == optionalType, "Expected some(42) to have type i64?.");
+        Assert(some.IsSome, "Expected a present optional.");
+        Assert(some.AsOptionalValue().AsI64() == 42, "Expected contained value 42.");
+        Assert(some.ToCanonicalString() == "some(42)", "Expected canonical present optional.");
+
+        var none = VarnValue.None(VarnType.I64);
+        Assert(none.Type == optionalType, "Expected none[i64] to have type i64?.");
+        Assert(!none.IsSome, "Expected an absent optional.");
+        Assert(none.ToCanonicalString() == "none[i64]", "Expected canonical absent optional.");
+
+        var response = VarnJsonFormatter.CreateRunResponse(new VarnRunResult(some, [], 0), string.Empty);
+        var optionalResponse = response.ReturnValue
+            ?? throw new InvalidOperationException("Expected a structured optional response.");
+        Assert(optionalResponse.Type == "i64?", "Expected the structured optional type.");
+        var nestedResponse = optionalResponse.Value as VarnValueResponse
+            ?? throw new InvalidOperationException("Expected a nested structured present value.");
+        Assert(nestedResponse.Type == "i64" && Convert.ToInt64(nestedResponse.Value) == 42, "Expected nested value 42.");
+
+        AssertOptionalFactoryRejects(VarnType.Null);
+        AssertOptionalFactoryRejects(VarnType.Any);
+        AssertOptionalFactoryRejects(optionalType);
+        return Task.CompletedTask;
+    }
+
+    private static async Task OptionalsBranchOverPresentValues()
+    {
+        var result = await CreateEngine().RunAsync(OptionalProgram(present: true)).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 42, "Expected the present branch to return 42.");
+        Assert(result.Steps == 8, $"Expected deterministic step count 8, got {result.Steps}.");
+    }
+
+    private static async Task OptionalsBranchOverAbsentValues()
+    {
+        var result = await CreateEngine().RunAsync(OptionalProgram(present: false)).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 7, "Expected the absent branch to return 7.");
+        Assert(result.Steps == 8, $"Expected deterministic step count 8, got {result.Steps}.");
+    }
+
+    private static async Task ModulesCanProduceOptionalValues()
+    {
+        const string source = """
+            budget[steps=50]
+            fn main()->i64
+                let @0:i64? test.maybe(false)
+                if let @1:i64 @0
+                    ret @1
+                else
+                    ret 7
+                end
+                ret 0
+            end
+            """;
+        var engine = CreateEngine();
+        engine.AddModule(new TestModule());
+        var result = await engine.RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 7, "Expected the module-produced absence to select the else branch.");
+    }
+
+    private static Task CheckerRequiresOptionalIfLetSource()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64 1
+                if let @1:i64 @0
+                    ret @1
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3026");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerMatchesIfLetBindingType()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? some(1)
+                if let @1:str @0
+                    ret 1
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3027");
+        return Task.CompletedTask;
+    }
+
+    private static Task OptionalBindingDoesNotEscape()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? some(1)
+                if let @1:i64 @0
+                end
+                ret @1
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
+        return Task.CompletedTask;
+    }
+
+    private static Task OptionalBindingIsImmutable()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? some(1)
+                if let @1:i64 @0
+                    set @1 2
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3024");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsUnsupportedOptionalElementTypes()
+    {
+        string[] sources =
+        [
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:null? none[null]
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64?? none[i64?]
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? some(null)
+                ret 0
+            end
+            """
+        ];
+
+        foreach (var source in sources)
+        {
+            AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3028");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRequiresExactOptionalConstructionTypes()
+    {
+        const string someMismatch = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? some(true)
+                ret 0
+            end
+            """;
+        const string noneMismatch = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64? none[str]
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(someMismatch).Diagnostics, "VARN3006");
+        AssertHasDiagnostic(CreateEngine().Check(noneMismatch).Diagnostics, "VARN3006");
+        return Task.CompletedTask;
+    }
+
+    private static string OptionalProgram(bool present) => $$"""
+        budget[steps=100]
+        fn maybe(@0:bool)->i64?
+            if @0
+                ret some(42)
+            end
+            ret none[i64]
+        end
+        fn main()->i64
+            let @0:i64? maybe({{present.ToString().ToLowerInvariant()}})
+            if let @1:i64 @0
+                ret @1
+            else
+                ret 7
+            end
+            ret 0
+        end
+        """;
+
     private static async Task RuntimeExecutesMilestone()
     {
         var output = new StringWriter();
@@ -406,6 +627,11 @@ public static class Program
                 end
                 var @1:i64 0
                 set @1 add(@1,1)
+                let @2:i64? some(1)
+                let @3:i64? none[i64]
+                if let @4:i64 @2
+                    set @1 add(@1,@4)
+                end
                 ret @1
             end
             """;
@@ -418,6 +644,9 @@ public static class Program
         Assert(first.Contains("O(@0:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
         Assert(first.Contains("M(@1:i64,K[i64:0])", StringComparison.Ordinal), "Canonical output omitted the mutable declaration.");
         Assert(first.Contains("S(@1,A[add(V[@1];K[i64:1])])", StringComparison.Ordinal), "Canonical output omitted the assignment.");
+        Assert(first.Contains("L(@2:i64?,P(K[i64:1]))", StringComparison.Ordinal), "Canonical output omitted the present optional.");
+        Assert(first.Contains("L(@3:i64?,N[i64])", StringComparison.Ordinal), "Canonical output omitted the absent optional.");
+        Assert(first.Contains("J(@4:i64,V[@2])", StringComparison.Ordinal), "Canonical output omitted the if-let binding.");
         return Task.CompletedTask;
     }
 
@@ -468,6 +697,18 @@ public static class Program
 
     private static VarnEngine CreateEngine() => new([new CoreModule(), new ConsoleModule()]);
 
+    private static void AssertOptionalFactoryRejects(VarnType elementType)
+    {
+        try
+        {
+            _ = VarnValue.None(elementType);
+            throw new InvalidOperationException($"Expected optional factory to reject {elementType}.");
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
     private static void AssertHasDiagnostic(IReadOnlyList<Diagnostic> diagnostics, string code) =>
         Assert(diagnostics.Any(diagnostic => diagnostic.Code == code), $"Expected {code}; got {FormatDiagnostics(diagnostics)}");
 
@@ -491,6 +732,10 @@ public static class Program
             builder.Function(
                 new VarnFunctionSignature("test.double", [VarnType.I64], VarnType.I64),
                 static (_, arguments, _) => ValueTask.FromResult(VarnValue.From(checked(arguments[0].AsI64() * 2))));
+            builder.Function(
+                new VarnFunctionSignature("test.maybe", [VarnType.Bool], VarnType.Optional(VarnType.I64)),
+                static (_, arguments, _) => ValueTask.FromResult(
+                    arguments[0].AsBool() ? VarnValue.Some(VarnValue.From(42L)) : VarnValue.None(VarnType.I64)));
         }
     }
 }

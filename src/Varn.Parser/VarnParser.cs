@@ -199,9 +199,14 @@ public static class VarnParser
             return new ReturnStatementSyntax(ParseExpression(), start);
         }
 
-        private IfStatementSyntax ParseIfStatement()
+        private StatementSyntax ParseIfStatement()
         {
             var start = Match(TokenKind.If).Span;
+            if (Current.Kind == TokenKind.Let)
+            {
+                return ParseIfLetStatement(start);
+            }
+
             var condition = ParseExpression();
             RequireLineEnd();
             SkipNewLines();
@@ -217,6 +222,29 @@ public static class VarnParser
 
             Match(TokenKind.End);
             return new IfStatementSyntax(condition, thenBody, elseBody, start);
+        }
+
+        private IfLetStatementSyntax ParseIfLetStatement(SourceSpan start)
+        {
+            Match(TokenKind.Let);
+            var binding = Match(TokenKind.Slot).Text;
+            Match(TokenKind.Colon);
+            var bindingType = ParseType();
+            var optional = ParseExpression();
+            RequireLineEnd();
+            SkipNewLines();
+            var thenBody = ParseBlock(TokenKind.Else, TokenKind.End);
+            IReadOnlyList<StatementSyntax> elseBody = [];
+            if (Current.Kind == TokenKind.Else)
+            {
+                MoveNext();
+                RequireLineEnd();
+                SkipNewLines();
+                elseBody = ParseBlock(TokenKind.End);
+            }
+
+            Match(TokenKind.End);
+            return new IfLetStatementSyntax(binding, bindingType, optional, thenBody, elseBody, start);
         }
 
         private LoopStatementSyntax ParseLoopStatement()
@@ -286,6 +314,10 @@ public static class VarnParser
                 case TokenKind.Null:
                     MoveNext();
                     return new LiteralExpressionSyntax(null, VarnType.Null, token.Span);
+                case TokenKind.Some:
+                    return ParseSomeExpression();
+                case TokenKind.None:
+                    return ParseNoneExpression();
                 case TokenKind.Slot:
                     MoveNext();
                     return new ReferenceExpressionSyntax(token.Text, token.Span);
@@ -296,6 +328,24 @@ public static class VarnParser
                     MoveNext();
                     return new LiteralExpressionSyntax(null, VarnType.Null, token.Span);
             }
+        }
+
+        private SomeExpressionSyntax ParseSomeExpression()
+        {
+            var start = Match(TokenKind.Some).Span;
+            Match(TokenKind.LeftParen);
+            var value = ParseExpression();
+            Match(TokenKind.RightParen);
+            return new SomeExpressionSyntax(value, start);
+        }
+
+        private NoneExpressionSyntax ParseNoneExpression()
+        {
+            var start = Match(TokenKind.None).Span;
+            Match(TokenKind.LeftBracket);
+            var elementType = ParseType();
+            Match(TokenKind.RightBracket);
+            return new NoneExpressionSyntax(elementType, start);
         }
 
         private CallExpressionSyntax ParseCall()
@@ -324,8 +374,15 @@ public static class VarnParser
 
         private VarnType ParseType()
         {
-            var token = Match(TokenKind.Identifier);
-            return VarnType.Parse(token.Text);
+            var token = Current.Kind == TokenKind.Null ? TakeCurrent() : Match(TokenKind.Identifier);
+            var type = VarnType.Parse(token.Text);
+            while (Current.Kind == TokenKind.Question)
+            {
+                MoveNext();
+                type = VarnType.Optional(type);
+            }
+
+            return type;
         }
 
         private IReadOnlyList<string> ParseNameList()
@@ -370,6 +427,13 @@ public static class VarnParser
             {
                 MoveNext();
             }
+        }
+
+        private Token TakeCurrent()
+        {
+            var token = Current;
+            MoveNext();
+            return token;
         }
 
         private Token Match(TokenKind expected)

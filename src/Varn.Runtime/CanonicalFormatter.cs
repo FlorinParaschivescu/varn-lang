@@ -67,6 +67,15 @@ public static class CanonicalFormatter
                 AppendJoined(builder, conditional.ElseBody, AppendStatement);
                 builder.Append("}}");
                 break;
+            case IfLetStatementSyntax ifLet:
+                builder.Append("J(").Append(ifLet.Binding).Append(':').Append(ifLet.BindingType.Name).Append(',');
+                AppendExpression(builder, ifLet.Optional);
+                builder.Append("){T{");
+                AppendJoined(builder, ifLet.ThenBody, AppendStatement);
+                builder.Append("};E{");
+                AppendJoined(builder, ifLet.ElseBody, AppendStatement);
+                builder.Append("}}");
+                break;
             case LoopStatementSyntax loop:
                 builder.Append("O(")
                     .Append(loop.Iterator).Append(':').Append(loop.IteratorType.Name).Append(',')
@@ -85,6 +94,14 @@ public static class CanonicalFormatter
         {
             case LiteralExpressionSyntax literal:
                 builder.Append("K[").Append(literal.Type.Name).Append(':').Append(FormatLiteral(literal)).Append(']');
+                break;
+            case SomeExpressionSyntax some:
+                builder.Append("P(");
+                AppendExpression(builder, some.Value);
+                builder.Append(')');
+                break;
+            case NoneExpressionSyntax none:
+                builder.Append("N[").Append(none.ElementType.Name).Append(']');
                 break;
             case ReferenceExpressionSyntax reference:
                 builder.Append("V[").Append(reference.Name).Append(']');

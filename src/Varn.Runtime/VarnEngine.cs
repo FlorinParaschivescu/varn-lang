@@ -155,6 +155,24 @@ public sealed class VarnEngine
                         }
 
                         break;
+                    case IfLetStatementSyntax ifLet:
+                        var optional = await EvaluateAsync(ifLet.Optional, frame, cancellationToken).ConfigureAwait(false);
+                        var optionalFrame = new Dictionary<string, SlotCell>(frame, StringComparer.Ordinal);
+                        var optionalBody = ifLet.ElseBody;
+                        if (optional.IsSome)
+                        {
+                            optionalFrame.Add(ifLet.Binding, new SlotCell(optional.AsOptionalValue()));
+                            optionalBody = ifLet.ThenBody;
+                        }
+
+                        var optionalResult = await ExecuteStatementsAsync(optionalBody, optionalFrame, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (optionalResult.HasReturn)
+                        {
+                            return optionalResult;
+                        }
+
+                        break;
                     case LoopStatementSyntax loop:
                         for (var current = loop.StartInclusive; current < loop.EndExclusive; current++)
                         {
@@ -188,6 +206,9 @@ public sealed class VarnEngine
             return expression switch
             {
                 LiteralExpressionSyntax literal => new VarnValue(literal.Type, literal.Value),
+                SomeExpressionSyntax some => VarnValue.Some(
+                    await EvaluateAsync(some.Value, frame, cancellationToken).ConfigureAwait(false)),
+                NoneExpressionSyntax none => VarnValue.None(none.ElementType),
                 ReferenceExpressionSyntax reference => frame[reference.Name].Value,
                 CallExpressionSyntax call => await InvokeCallAsync(call, frame, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.")

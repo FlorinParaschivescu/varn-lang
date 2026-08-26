@@ -25,7 +25,9 @@ public static class VarnLexer
             ["max"] = TokenKind.Max,
             ["true"] = TokenKind.True,
             ["false"] = TokenKind.False,
-            ["null"] = TokenKind.Null
+            ["null"] = TokenKind.Null,
+            ["some"] = TokenKind.Some,
+            ["none"] = TokenKind.None
         };
 
     public static LexResult Lex(string source)
@@ -208,6 +210,7 @@ public static class VarnLexer
                 ':' => TokenKind.Colon,
                 '!' => TokenKind.Bang,
                 '=' => TokenKind.Equals,
+                '?' => TokenKind.Question,
                 _ => (TokenKind?)null
             };
 
