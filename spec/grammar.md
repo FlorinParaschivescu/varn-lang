@@ -1,0 +1,28 @@
+# Varn v0.1 grammar
+
+The implemented source grammar is shown in compact EBNF. Newlines terminate declarations and statements.
+
+```ebnf
+program       = newline*, directive*, function+, EOF ;
+directive     = capability | budget ;
+capability    = "cap", "[", name-list?, "]", newline ;
+budget        = "budget", "[", "steps", "=", integer, "]", newline ;
+function      = "fn", identifier, "(", parameters?, ")", "->", type,
+                effects?, newline, statement*, "end", newline? ;
+parameters    = parameter, { ",", parameter } ;
+parameter     = slot, ":", type ;
+effects       = "!", "[", name-list?, "]" ;
+statement     = let | return | call ;
+let           = "let", slot, ":", type, expression, newline ;
+return        = "ret", expression, newline ;
+expression    = literal | slot | call ;
+call          = identifier, "(", arguments?, ")" ;
+arguments     = expression, { ",", expression } ;
+literal       = integer | float | string | "true" | "false" | "null" ;
+name-list     = identifier, { ",", identifier } ;
+slot          = "@", digit, { digit } ;
+identifier    = letter, { letter | digit | "_" | "." } ;
+type          = identifier ;
+```
+
+Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.
