@@ -5,23 +5,37 @@ Varn should advance through small, measurable vertical slices. Each milestone in
 ## Practical test gates
 
 1. [x] Real agent protocol loop: Codex generates, checks, repairs, inspects, and executes Varn through MCP.
-2. [ ] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
+2. [x] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
 3. [ ] Structured application tasks: records and `Result` enable explicit data and failure contracts.
 4. [ ] Controlled web/API tasks: structured network policy plus a trusted HTTP module.
 5. [ ] Community-hosted execution: isolated, versioned, signed module processes.
 
-## Current focus — typed lists
+## Current focus — typed records
 
-The next vertical slice enables the first meaningful bounded data-transformation benchmarks and builds directly on safe optional access.
+The next vertical slice makes structured application inputs and outputs explicit without introducing ambient object behavior.
 
-- [ ] Specify homogeneous list type and literal syntax.
-- [ ] Add immutable list values to the AST, checker, runtime, module SDK, and canonical format.
-- [ ] Provide deterministic length and safe indexed lookup returning an optional.
-- [ ] Add bounded traversal without implicit allocation or ambient mutation.
-- [ ] Add exhaustive size, element-type, index, and resource-accounting tests.
-- [ ] Compare an AI-generated list transformation through the MCP adapter.
+- [ ] Specify closed named-record type, construction, and field-access syntax.
+- [ ] Add immutable record values to the AST, checker, runtime, module SDK, JSON, and canonical format.
+- [ ] Require unique, ordinally ordered field names and exact field types.
+- [ ] Add exhaustive missing, duplicate, extra, access, and resource-accounting tests.
+- [ ] Exercise an AI-generated structured application task through the MCP adapter.
 
-Exit criterion: Varn can perform and verify a bounded transformation over a homogeneous list, with out-of-range access represented explicitly as absence.
+Exit criterion: Varn can validate and transform a closed structured value with deterministic field order and no dynamic property access.
+
+## Completed — typed lists
+
+This slice enables the first meaningful bounded data-transformation benchmarks and builds directly on safe optional access.
+
+- [x] Specify homogeneous list type and literal syntax.
+- [x] Add immutable list values to the AST, checker, runtime, module SDK, and canonical format.
+- [x] Provide deterministic length and safe indexed lookup returning an optional.
+- [x] Add bounded traversal without implicit allocation or ambient mutation.
+- [x] Add exhaustive size, element-type, index, and resource-accounting tests.
+- [x] Compare an AI-generated list transformation through the MCP adapter.
+
+Exit criterion met: Varn performs and verifies a bounded fold over a homogeneous list, with out-of-range access represented explicitly as absence.
+
+Dogfood evidence: an isolated Codex agent generated a typed-list fold through the stdio MCP adapter, repaired `VARN3009` after its first check, inspected the canonical structure, and returned `14` in 29 deterministic steps with no capabilities granted.
 
 ## Completed — typed optional values
 
@@ -76,7 +90,7 @@ Exit criterion: a clean clone can run one documented command and receive the sam
 - [x] Add statically bounded loops with deterministic step accounting.
 - [x] Add explicit mutable slots and assignment.
 - [x] Add typed optional values with safe extraction.
-- [ ] Add typed lists with bounded traversal.
+- [x] Add typed lists with bounded traversal.
 - [ ] Add records.
 - [ ] Add `Result` values.
 - [ ] Add exhaustive success and rejection tests for every feature.

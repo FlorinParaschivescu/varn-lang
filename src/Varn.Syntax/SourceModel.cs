@@ -21,7 +21,11 @@ public sealed record VarnType(string Name)
 
     public bool IsOptional => Name.EndsWith("?", StringComparison.Ordinal);
 
+    public bool IsList => Name.StartsWith("list[", StringComparison.Ordinal) && Name.EndsWith(']');
+
     public VarnType? OptionalElementType => IsOptional ? Parse(Name[..^1]) : null;
+
+    public VarnType? ListElementType => IsList ? Parse(Name[5..^1]) : null;
 
     public static VarnType Optional(VarnType elementType)
     {
@@ -29,11 +33,22 @@ public sealed record VarnType(string Name)
         return new VarnType($"{elementType.Name}?");
     }
 
+    public static VarnType List(VarnType elementType)
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        return new VarnType($"list[{elementType.Name}]");
+    }
+
     public static VarnType Parse(string name)
     {
         if (name.EndsWith("?", StringComparison.Ordinal))
         {
             return Optional(Parse(name[..^1]));
+        }
+
+        if (name.StartsWith("list[", StringComparison.Ordinal) && name.EndsWith(']'))
+        {
+            return List(Parse(name[5..^1]));
         }
 
         return name switch

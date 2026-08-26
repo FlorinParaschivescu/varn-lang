@@ -66,6 +66,14 @@ public sealed record LoopStatementSyntax(
     IReadOnlyList<StatementSyntax> Body,
     SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
 
+public sealed record EachStatementSyntax(
+    string Iterator,
+    VarnType IteratorType,
+    ExpressionSyntax List,
+    long MaxIterations,
+    IReadOnlyList<StatementSyntax> Body,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
 public abstract record ExpressionSyntax(SourceSpan Span);
 
 public sealed record LiteralExpressionSyntax(
@@ -79,6 +87,11 @@ public sealed record SomeExpressionSyntax(
 
 public sealed record NoneExpressionSyntax(
     VarnType ElementType,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
+public sealed record ListExpressionSyntax(
+    VarnType ElementType,
+    IReadOnlyList<ExpressionSyntax> Elements,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
 public sealed record ReferenceExpressionSyntax(

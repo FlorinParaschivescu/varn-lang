@@ -74,5 +74,7 @@ public static class VarnJsonFormatter
             value.Type.Name,
             value.Type.IsOptional
                 ? value.IsSome ? MapValue(value.AsOptionalValue()) : null
-                : value.Value);
+                : value.Type.IsList
+                    ? value.AsList().Select(MapValue).ToArray()
+                    : value.Value);
 }

@@ -57,6 +57,18 @@ public static class Program
             ("optional bindings are immutable", OptionalBindingIsImmutable),
             ("checker rejects unsupported optional element types", CheckerRejectsUnsupportedOptionalElementTypes),
             ("checker requires exact optional construction types", CheckerRequiresExactOptionalConstructionTypes),
+            ("list type and value contracts are explicit", ListTypeAndValueContractsAreExplicit),
+            ("list length and safe lookup execute", ListLengthAndSafeLookupExecute),
+            ("safe lookup represents out-of-range indexes as absence", SafeLookupRepresentsOutOfRangeAsAbsence),
+            ("bounded each traversal folds homogeneous values", BoundedEachTraversalFoldsValues),
+            ("runtime enforces the each ceiling", RuntimeEnforcesEachCeiling),
+            ("checker rejects list element mismatches", CheckerRejectsListElementMismatches),
+            ("checker rejects unsupported list element types", CheckerRejectsUnsupportedListElementTypes),
+            ("checker validates each source, binding, and ceiling", CheckerValidatesEachContracts),
+            ("each bindings do not escape", EachBindingDoesNotEscape),
+            ("each bindings are immutable", EachBindingIsImmutable),
+            ("checker validates list operations", CheckerValidatesListOperations),
+            ("list construction charges one step per element", ListConstructionChargesPerElement),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -87,7 +99,7 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nif true\nloop @1:i64 from 0 to 1 max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nlet @4:list[i64] list[i64](1)\nif true\nloop @1:i64 from 0 to 1 max 1\nend\neach @5:i64 in @4 max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
@@ -97,6 +109,9 @@ public static class Program
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.If), "Expected an if token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Loop), "Expected a loop token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Max), "Expected a max token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.List), "Expected a list token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Each), "Expected an each token.");
+        Assert(result.Tokens.Any(static token => token.Kind == TokenKind.In), "Expected an in token.");
         return Task.CompletedTask;
     }
 
@@ -566,6 +581,224 @@ public static class Program
         end
         """;
 
+    private static Task ListTypeAndValueContractsAreExplicit()
+    {
+        var type = VarnType.List(VarnType.I64);
+        Assert(type.IsList, "Expected a list type.");
+        Assert(type.ListElementType == VarnType.I64, "Expected the i64 list element type.");
+        Assert(VarnType.Parse("list[i64]") == type, "Expected list type parsing to be stable.");
+
+        var value = VarnValue.FromList(VarnType.I64, [VarnValue.From(1L), VarnValue.From(2L)]);
+        Assert(value.Type == type, "Expected list[i64].");
+        Assert(value.AsList().Select(static item => item.AsI64()).SequenceEqual([1L, 2L]), "Expected immutable list values.");
+        Assert(value.ToCanonicalString() == "list[i64](1,2)", "Expected canonical SDK list text.");
+        AssertListFactoryRejects(VarnType.I64, [VarnValue.From(true)]);
+        AssertListFactoryRejects(VarnType.Null, []);
+        AssertListFactoryRejects(VarnType.I64, Enumerable.Repeat(VarnValue.From(0L), VarnValue.MaxListElements + 1));
+        AssertOptionalFactoryRejects(type);
+        return Task.CompletedTask;
+    }
+
+    private static async Task ListLengthAndSafeLookupExecute()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](10,20,30)
+                let @1:i64 list.length(@0)
+                let @2:i64? list.get(@0,1)
+                if let @3:i64 @2
+                    ret add(@1,@3)
+                end
+                ret 0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 23, "Expected length 3 plus value 20.");
+    }
+
+    private static async Task SafeLookupRepresentsOutOfRangeAsAbsence()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](10,20)
+                let @1:i64? list.get(@0,-1)
+                let @2:i64? list.get(@0,2)
+                if let @3:i64 @1
+                    ret @3
+                end
+                if let @4:i64 @2
+                    ret @4
+                end
+                ret 7
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 7, "Expected both invalid indexes to be absent.");
+    }
+
+    private static async Task BoundedEachTraversalFoldsValues()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,2,3,4)
+                var @1:i64 0
+                each @2:i64 in @0 max 4
+                    set @1 add(@1,@2)
+                end
+                ret @1
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 10, "Expected the bounded fold to return 10.");
+    }
+
+    private static async Task RuntimeEnforcesEachCeiling()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,2,3)
+                each @1:i64 in @0 max 2
+                end
+                ret 0
+            end
+            """;
+        var check = CreateEngine().Check(source);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        AssertHasDiagnostic(result.Diagnostics, "VARN4006");
+    }
+
+    private static Task CheckerRejectsListElementMismatches()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,true)
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3030");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerRejectsUnsupportedListElementTypes()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:list[null] list[null]()
+                let @1:list[list[i64]] list[list[i64]]()
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        Assert(diagnostics.Count(diagnostic => diagnostic.Code == "VARN3029") >= 2, FormatDiagnostics(diagnostics));
+
+        var elements = Enumerable.Repeat("0", VarnValue.MaxListElements + 1);
+        var oversized = $"budget[steps=20]\nfn main()->i64\nlet @0:list[i64] list[i64]({string.Join(',', elements)})\nret 0\nend\n";
+        AssertHasDiagnostic(CreateEngine().Check(oversized).Diagnostics, "VARN3031");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerValidatesEachContracts()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                each @0:i64 in 1 max 1
+                end
+                let @1:list[i64] list[i64](1)
+                each @2:bool in @1 max 1
+                end
+                each @3:i64 in @1 max 1025
+                end
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3032");
+        AssertHasDiagnostic(diagnostics, "VARN3033");
+        AssertHasDiagnostic(diagnostics, "VARN3034");
+        return Task.CompletedTask;
+    }
+
+    private static Task EachBindingDoesNotEscape()
+    {
+        const string source = """
+            budget[steps=30]
+            fn main()->i64
+                let @0:list[i64] list[i64](1)
+                each @1:i64 in @0 max 1
+                end
+                ret @1
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
+        return Task.CompletedTask;
+    }
+
+    private static Task EachBindingIsImmutable()
+    {
+        const string source = """
+            budget[steps=30]
+            fn main()->i64
+                let @0:list[i64] list[i64](1)
+                each @1:i64 in @0 max 1
+                    set @1 2
+                end
+                ret 0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3024");
+        return Task.CompletedTask;
+    }
+
+    private static Task CheckerValidatesListOperations()
+    {
+        const string source = """
+            budget[steps=30]
+            fn main()->i64
+                let @0:i64 list.length(1)
+                let @1:list[i64] list[i64](1)
+                let @2:i64? list.get(@1,true)
+                ret 0
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN3035");
+        AssertHasDiagnostic(diagnostics, "VARN3015");
+        return Task.CompletedTask;
+    }
+
+    private static async Task ListConstructionChargesPerElement()
+    {
+        const string empty = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64]()
+                ret list.length(@0)
+            end
+            """;
+        const string populated = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,2,3)
+                ret list.length(@0)
+            end
+            """;
+        var emptyResult = await CreateEngine().RunAsync(empty).ConfigureAwait(false);
+        var populatedResult = await CreateEngine().RunAsync(populated).ConfigureAwait(false);
+        Assert(emptyResult.IsSuccess && populatedResult.IsSuccess, "Expected both list programs to execute.");
+        Assert(populatedResult.Steps - emptyResult.Steps == 3, "Expected one deterministic construction step per element.");
+    }
+
     private static async Task RuntimeExecutesMilestone()
     {
         var output = new StringWriter();
@@ -696,6 +929,18 @@ public static class Program
     }
 
     private static VarnEngine CreateEngine() => new([new CoreModule(), new ConsoleModule()]);
+
+    private static void AssertListFactoryRejects(VarnType elementType, IEnumerable<VarnValue> values)
+    {
+        try
+        {
+            _ = VarnValue.FromList(elementType, values);
+            throw new InvalidOperationException($"Expected list factory to reject {elementType} values.");
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
 
     private static void AssertOptionalFactoryRejects(VarnType elementType)
     {

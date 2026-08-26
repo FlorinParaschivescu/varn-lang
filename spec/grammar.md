@@ -13,7 +13,7 @@ parameters    = parameter, { ",", parameter } ;
 parameter     = slot, ":", type ;
 effects       = "!", "[", name-list?, "]" ;
 
-statement     = let | variable | assignment | return | call | conditional | loop ;
+statement     = let | variable | assignment | return | call | conditional | loop | each ;
 let           = "let", slot, ":", type, expression, newline ;
 variable      = "var", slot, ":", type, expression, newline ;
 assignment    = "set", slot, expression, newline ;
@@ -30,17 +30,20 @@ optional-if   = "if", "let", slot, ":", type, expression, newline,
 loop          = "loop", slot, ":", type,
                 "from", integer, "to", integer, "max", integer, newline,
                 statement*, "end", newline ;
+each          = "each", slot, ":", type, "in", expression,
+                "max", integer, newline, statement*, "end", newline ;
 
-expression    = literal | slot | call | some | none ;
+expression    = literal | slot | call | some | none | list ;
 call          = identifier, "(", arguments?, ")" ;
 some          = "some", "(", expression, ")" ;
 none          = "none", "[", type, "]" ;
+list          = "list", "[", type, "]", "(", arguments?, ")" ;
 arguments     = expression, { ",", expression } ;
 literal       = integer | float | string | "true" | "false" | "null" ;
 name-list     = identifier, { ",", identifier } ;
 slot          = "@", digit, { digit } ;
 identifier    = letter, { letter | digit | "_" | "." } ;
-type          = ( identifier | "null" ), { "?" } ;
+type          = ( identifier | "null" | "list", "[", type, "]" ), { "?" } ;
 ```
 
 Blocks are contextually terminated by `else` or `end`. Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.

@@ -85,6 +85,13 @@ public static class CanonicalFormatter
                 AppendJoined(builder, loop.Body, AppendStatement);
                 builder.Append('}');
                 break;
+            case EachStatementSyntax each:
+                builder.Append("H(").Append(each.Iterator).Append(':').Append(each.IteratorType.Name).Append(',');
+                AppendExpression(builder, each.List);
+                builder.Append(',').Append(each.MaxIterations.ToString(CultureInfo.InvariantCulture)).Append("){");
+                AppendJoined(builder, each.Body, AppendStatement);
+                builder.Append('}');
+                break;
         }
     }
 
@@ -102,6 +109,11 @@ public static class CanonicalFormatter
                 break;
             case NoneExpressionSyntax none:
                 builder.Append("N[").Append(none.ElementType.Name).Append(']');
+                break;
+            case ListExpressionSyntax list:
+                builder.Append("Q[").Append(list.ElementType.Name).Append("](");
+                AppendJoined(builder, list.Elements, AppendExpression);
+                builder.Append(')');
                 break;
             case ReferenceExpressionSyntax reference:
                 builder.Append("V[").Append(reference.Name).Append(']');

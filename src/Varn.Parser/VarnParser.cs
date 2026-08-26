@@ -161,6 +161,7 @@ public static class VarnParser
                 TokenKind.Ret => ParseReturnStatement(),
                 TokenKind.If => ParseIfStatement(),
                 TokenKind.Loop => ParseLoopStatement(),
+                TokenKind.Each => ParseEachStatement(),
                 _ => ParseExpressionStatement()
             };
         }
@@ -273,6 +274,23 @@ public static class VarnParser
                 start);
         }
 
+        private EachStatementSyntax ParseEachStatement()
+        {
+            var start = Match(TokenKind.Each).Span;
+            var iterator = Match(TokenKind.Slot).Text;
+            Match(TokenKind.Colon);
+            var iteratorType = ParseType();
+            Match(TokenKind.In);
+            var list = ParseExpression();
+            Match(TokenKind.Max);
+            var maxIterations = ParseI64Literal();
+            RequireLineEnd();
+            SkipNewLines();
+            var body = ParseBlock(TokenKind.End);
+            Match(TokenKind.End);
+            return new EachStatementSyntax(iterator, iteratorType, list, maxIterations, body, start);
+        }
+
         private long ParseI64Literal()
         {
             var token = Match(TokenKind.Integer);
@@ -318,6 +336,8 @@ public static class VarnParser
                     return ParseSomeExpression();
                 case TokenKind.None:
                     return ParseNoneExpression();
+                case TokenKind.List:
+                    return ParseListExpression();
                 case TokenKind.Slot:
                     MoveNext();
                     return new ReferenceExpressionSyntax(token.Text, token.Span);
@@ -348,6 +368,33 @@ public static class VarnParser
             return new NoneExpressionSyntax(elementType, start);
         }
 
+        private ListExpressionSyntax ParseListExpression()
+        {
+            var start = Match(TokenKind.List).Span;
+            Match(TokenKind.LeftBracket);
+            var elementType = ParseType();
+            Match(TokenKind.RightBracket);
+            Match(TokenKind.LeftParen);
+            var elements = new List<ExpressionSyntax>();
+            if (Current.Kind != TokenKind.RightParen)
+            {
+                do
+                {
+                    elements.Add(ParseExpression());
+                    if (Current.Kind != TokenKind.Comma)
+                    {
+                        break;
+                    }
+
+                    MoveNext();
+                }
+                while (Current.Kind != TokenKind.EndOfFile);
+            }
+
+            Match(TokenKind.RightParen);
+            return new ListExpressionSyntax(elementType, elements, start);
+        }
+
         private CallExpressionSyntax ParseCall()
         {
             var name = Match(TokenKind.Identifier);
@@ -374,8 +421,20 @@ public static class VarnParser
 
         private VarnType ParseType()
         {
-            var token = Current.Kind == TokenKind.Null ? TakeCurrent() : Match(TokenKind.Identifier);
-            var type = VarnType.Parse(token.Text);
+            VarnType type;
+            if (Current.Kind == TokenKind.List)
+            {
+                MoveNext();
+                Match(TokenKind.LeftBracket);
+                var elementType = ParseType();
+                Match(TokenKind.RightBracket);
+                type = VarnType.List(elementType);
+            }
+            else
+            {
+                var token = Current.Kind == TokenKind.Null ? TakeCurrent() : Match(TokenKind.Identifier);
+                type = VarnType.Parse(token.Text);
+            }
             while (Current.Kind == TokenKind.Question)
             {
                 MoveNext();

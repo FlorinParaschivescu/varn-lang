@@ -58,6 +58,29 @@ end
 
 The source expression must be optional (`VARN3026`) and the binding type must exactly match its element type (`VARN3027`). The binding is immutable, exists only in the present branch, and cannot escape. The absent branch never creates the binding. There is no unchecked optional access operation.
 
+## Typed lists
+
+Typed list construction states the homogeneous scalar element type explicitly, so empty lists do not require contextual inference:
+
+```varn
+let @0:list[i64] list[i64](10,20,30)
+let @1:i64 list.length(@0)
+let @2:i64? list.get(@0,1)
+```
+
+Lists are immutable and contain at most 1,024 elements (`VARN3031`). Every literal element must exactly match the declared element type (`VARN3030`); supported types are `i64`, `f64`, `bool`, and `str` (`VARN3029`). `list.get` never traps for an invalid index: it returns a typed absence that must be handled with `if let`.
+
+`each` traverses a list through an immutable element binding and requires a literal maximum:
+
+```varn
+var @1:i64 0
+each @2:i64 in @0 max 3
+    set @1 add(@1,@2)
+end
+```
+
+The source must be a list (`VARN3032`), the binding must match its element type (`VARN3033`), and `max` must be between 0 and 1,024 (`VARN3034`). The runtime rejects a list longer than the stated maximum with `VARN4006`; it never truncates traversal. Construction charges one step per element, and traversal charges every iteration boundary and body operation.
+
 ## Conditions
 
 An `if` condition must have type `bool`. Branch-local slots do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.

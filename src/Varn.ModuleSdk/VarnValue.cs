@@ -5,6 +5,8 @@ namespace Varn.ModuleSdk;
 
 public readonly record struct VarnValue(VarnType Type, object? Value)
 {
+    public const int MaxListElements = 1024;
+
     public static VarnValue From(long value) => new(VarnType.I64, value);
     public static VarnValue From(double value) => new(VarnType.F64, value);
     public static VarnValue From(bool value) => new(VarnType.Bool, value);
@@ -14,6 +16,25 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
 
     public static VarnValue None(VarnType elementType) =>
         new(VarnType.Optional(ValidateOptionalElementType(elementType)), null);
+
+    public static VarnValue FromList(VarnType elementType, IEnumerable<VarnValue> elements)
+    {
+        ArgumentNullException.ThrowIfNull(elements);
+        elementType = ValidateListElementType(elementType);
+        var values = elements.ToArray();
+        if (values.Length > MaxListElements)
+        {
+            throw new ArgumentException($"A Varn list cannot contain more than {MaxListElements} elements.", nameof(elements));
+        }
+
+        if (values.Any(value => value.Type != elementType))
+        {
+            throw new ArgumentException($"Every list value must have type '{elementType}'.", nameof(elements));
+        }
+
+        return new VarnValue(VarnType.List(elementType), Array.AsReadOnly(values));
+    }
+
     public static VarnValue Null => new(VarnType.Null, null);
 
     public bool IsSome => Type.IsOptional && Value is VarnValue;
@@ -34,12 +55,29 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
         ? value
         : throw new InvalidOperationException($"Expected a present optional, got {ToCanonicalString()}.");
 
+    public IReadOnlyList<VarnValue> AsList() => Type.IsList && Value is IReadOnlyList<VarnValue> values
+        ? values
+        : throw new InvalidOperationException($"Expected list, got {Type}.");
+
     private static VarnType ValidateOptionalElementType(VarnType elementType)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        if (elementType.IsOptional || elementType == VarnType.Null || elementType == VarnType.Any)
+        if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
+            elementType != VarnType.Bool && elementType != VarnType.String)
         {
             throw new ArgumentException($"Type '{elementType}' cannot be an optional element type.", nameof(elementType));
+        }
+
+        return elementType;
+    }
+
+    private static VarnType ValidateListElementType(VarnType elementType)
+    {
+        ArgumentNullException.ThrowIfNull(elementType);
+        if (elementType != VarnType.I64 && elementType != VarnType.F64 &&
+            elementType != VarnType.Bool && elementType != VarnType.String)
+        {
+            throw new ArgumentException($"Type '{elementType}' cannot be a list element type.", nameof(elementType));
         }
 
         return elementType;
@@ -52,6 +90,11 @@ public readonly record struct VarnValue(VarnType Type, object? Value)
             return Value is VarnValue value
                 ? $"some({value.ToCanonicalString()})"
                 : $"none[{Type.OptionalElementType}]";
+        }
+
+        if (Type.IsList)
+        {
+            return $"list[{Type.ListElementType}]({string.Join(",", AsList().Select(static value => value.ToCanonicalString()))})";
         }
 
         return Type.Name switch

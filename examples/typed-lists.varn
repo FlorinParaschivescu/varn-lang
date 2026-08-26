@@ -1,0 +1,20 @@
+budget[steps=200]
+
+fn sum(@0:list[i64])->i64
+    var @1:i64 0
+    each @2:i64 in @0 max 4
+        set @1 add(@1,@2)
+    end
+    ret @1
+end
+
+fn main()->i64
+    let @0:list[i64] list[i64](1,2,3,4)
+    let @1:i64? list.get(@0,9)
+    if let @2:i64 @1
+        ret -1
+    else
+        ret sum(@0)
+    end
+    ret 0
+end

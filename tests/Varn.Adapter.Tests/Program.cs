@@ -25,7 +25,7 @@ public static class Program
             ("adapter denies an ungranted program capability", RunDeniesMissingCapability),
             ("adapter captures successful execution", RunCapturesSuccessfulExecution),
             ("adapter enforces output ceilings", RunEnforcesOutputCeiling),
-            ("MCP stdio host supports optional check-inspect-run", McpHostSupportsCheckRepairRun)
+            ("MCP stdio host supports optional and list check-inspect-run", McpHostSupportsCheckRepairRun)
         };
 
         var failures = 0;
@@ -134,6 +134,12 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("if let @1:i64 @0", StringComparison.Ordinal) is true,
             "Expected compact optional syntax guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("list[i64](1,2,3)", StringComparison.Ordinal) is true,
+            "Expected compact typed-list syntax guidance.");
+        Assert(
+            client.ServerInstructions?.Contains("each @1:i64 in @0 max 3", StringComparison.Ordinal) is true,
+            "Expected compact bounded list traversal guidance.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
@@ -202,6 +208,71 @@ public static class Program
         var run = StructuredRoot(runResult.StructuredContent);
         Assert(run.GetProperty("success").GetBoolean(), "Expected MCP run to accept repaired optional source.");
         Assert(run.GetProperty("returnValue").GetProperty("value").GetInt64() == 42, "Expected MCP optional value 42.");
+
+        const string invalidListSource = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,2,3,4)
+                each @1:bool in @0 max 4
+                end
+                ret 0
+            end
+            """;
+        var invalidListResult = await client.CallToolAsync(
+            "varn_check",
+            new Dictionary<string, object?> { ["source"] = invalidListSource }).ConfigureAwait(false);
+        var invalidList = StructuredRoot(invalidListResult.StructuredContent);
+        Assert(
+            invalidList.GetProperty("diagnostics").EnumerateArray()
+                .Any(static diagnostic => diagnostic.GetProperty("code").GetString() == "VARN3033"),
+            "Expected MCP to explain the list binding mismatch.");
+
+        const string listSource = """
+            budget[steps=200]
+            fn main()->i64
+                let @0:list[i64] list[i64](1,2,3,4)
+                var @1:i64 0
+                each @2:i64 in @0 max 4
+                    set @1 add(@1,@2)
+                end
+                let @3:i64? list.get(@0,9)
+                if let @4:i64 @3
+                    ret -1
+                else
+                    ret @1
+                end
+                ret 0
+            end
+            """;
+        var listCheckResult = await client.CallToolAsync(
+            "varn_check",
+            new Dictionary<string, object?> { ["source"] = listSource }).ConfigureAwait(false);
+        var listCheck = StructuredRoot(listCheckResult.StructuredContent);
+        Assert(listCheck.GetProperty("success").GetBoolean(), "Expected MCP check to accept the repaired list source.");
+
+        var listInspectResult = await client.CallToolAsync(
+            "varn_inspect",
+            new Dictionary<string, object?> { ["source"] = listSource }).ConfigureAwait(false);
+        var listInspect = StructuredRoot(listInspectResult.StructuredContent);
+        var canonical = listInspect.GetProperty("canonical").GetString();
+        Assert(canonical?.Contains("Q[i64](K[i64:1];K[i64:2];K[i64:3];K[i64:4])", StringComparison.Ordinal) is true,
+            "Expected MCP canonical inspection to include the typed list.");
+        Assert(canonical?.Contains("H(@2:i64,V[@0],4)", StringComparison.Ordinal) is true,
+            "Expected MCP canonical inspection to include bounded list traversal.");
+
+        var listRunResult = await client.CallToolAsync(
+            "varn_run",
+            new Dictionary<string, object?>
+            {
+                ["source"] = listSource,
+                ["allowedCapabilities"] = Array.Empty<string>(),
+                ["maxSteps"] = 200L,
+                ["maxOutputCharacters"] = 100
+            }).ConfigureAwait(false);
+        var listRun = StructuredRoot(listRunResult.StructuredContent);
+        Assert(listRun.GetProperty("success").GetBoolean(), "Expected MCP run to accept the repaired list source.");
+        Assert(listRun.GetProperty("returnValue").GetProperty("value").GetInt64() == 10,
+            "Expected MCP bounded list fold value 10.");
     }
 
     private static string FindToolHostExecutable()
