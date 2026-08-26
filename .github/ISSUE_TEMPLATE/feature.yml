@@ -1,0 +1,41 @@
+name: Language or runtime proposal
+description: Propose a small, testable addition to Varn.
+title: "proposal: "
+labels: [proposal]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What AI-generation, verification, safety, or runtime problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: representation
+    attributes:
+      label: Proposed representation
+      description: Show the smallest concrete source or structural example.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Static validation and failure modes
+      description: What should be rejected before execution?
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: Effects, capabilities, and resources
+      description: Describe any observable effects, required capabilities, and deterministic budget costs.
+    validations:
+      required: true
+  - type: textarea
+    id: measurement
+    attributes:
+      label: Success measurement
+      description: How will tests or benchmarks demonstrate that this helps?
+    validations:
+      required: true

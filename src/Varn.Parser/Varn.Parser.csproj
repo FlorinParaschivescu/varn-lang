@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Varn.Lexer\Varn.Lexer.csproj" />
+    <ProjectReference Include="..\Varn.Syntax\Varn.Syntax.csproj" />
+  </ItemGroup>
+</Project>
