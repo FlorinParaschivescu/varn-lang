@@ -66,11 +66,11 @@ public sealed class VarnTypeChecker
         CheckType(function.ReturnType, function.Span);
         ReportDuplicates(function.Effects, "effect", function.Span);
 
-        var symbols = new Dictionary<string, VarnType>(StringComparer.Ordinal);
+        var symbols = new Dictionary<string, SlotSymbol>(StringComparer.Ordinal);
         foreach (var parameter in function.Parameters)
         {
             CheckType(parameter.Type, parameter.Span);
-            if (!symbols.TryAdd(parameter.Name, parameter.Type))
+            if (!symbols.TryAdd(parameter.Name, new SlotSymbol(parameter.Type, IsMutable: false)))
             {
                 Report("VARN3005", $"Slot '{parameter.Name}' is declared more than once.", parameter.Span);
             }
@@ -86,7 +86,7 @@ public sealed class VarnTypeChecker
     private void CheckStatements(
         IReadOnlyList<StatementSyntax> statements,
         FunctionSyntax function,
-        Dictionary<string, VarnType> symbols)
+        Dictionary<string, SlotSymbol> symbols)
     {
         foreach (var statement in statements)
         {
@@ -100,9 +100,42 @@ public sealed class VarnTypeChecker
                         Report("VARN3006", $"Cannot assign {valueType} to slot '{let.Name}' of type {let.Type}.", let.Span);
                     }
 
-                    if (!symbols.TryAdd(let.Name, let.Type))
+                    if (!symbols.TryAdd(let.Name, new SlotSymbol(let.Type, IsMutable: false)))
                     {
                         Report("VARN3005", $"Slot '{let.Name}' is declared more than once.", let.Span);
+                    }
+
+                    break;
+                case VarStatementSyntax variable:
+                    CheckType(variable.Type, variable.Span);
+                    var initialType = CheckExpression(variable.Value, function, symbols);
+                    if (!IsAssignable(variable.Type, initialType))
+                    {
+                        Report("VARN3006", $"Cannot assign {initialType} to slot '{variable.Name}' of type {variable.Type}.", variable.Span);
+                    }
+
+                    if (!symbols.TryAdd(variable.Name, new SlotSymbol(variable.Type, IsMutable: true)))
+                    {
+                        Report("VARN3005", $"Slot '{variable.Name}' is declared more than once.", variable.Span);
+                    }
+
+                    break;
+                case SetStatementSyntax assignment:
+                    var assignedType = CheckExpression(assignment.Value, function, symbols);
+                    if (!symbols.TryGetValue(assignment.Name, out var target))
+                    {
+                        Report("VARN3010", $"Slot '{assignment.Name}' is not defined.", assignment.Span);
+                        break;
+                    }
+
+                    if (!target.IsMutable)
+                    {
+                        Report("VARN3024", $"Slot '{assignment.Name}' is immutable and cannot be assigned.", assignment.Span);
+                    }
+
+                    if (!IsAssignable(target.Type, assignedType))
+                    {
+                        Report("VARN3025", $"Cannot assign {assignedType} to mutable slot '{assignment.Name}' of type {target.Type}.", assignment.Span);
                     }
 
                     break;
@@ -132,11 +165,11 @@ public sealed class VarnTypeChecker
                     CheckStatements(
                         conditional.ThenBody,
                         function,
-                        new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal));
+                        new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal));
                     CheckStatements(
                         conditional.ElseBody,
                         function,
-                        new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal));
+                        new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal));
                     break;
                 case LoopStatementSyntax loop:
                     CheckLoop(loop, function, symbols);
@@ -148,7 +181,7 @@ public sealed class VarnTypeChecker
     private void CheckLoop(
         LoopStatementSyntax loop,
         FunctionSyntax function,
-        IReadOnlyDictionary<string, VarnType> symbols)
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
     {
         if (loop.IteratorType != VarnType.I64)
         {
@@ -176,8 +209,8 @@ public sealed class VarnTypeChecker
             }
         }
 
-        var loopSymbols = new Dictionary<string, VarnType>(symbols, StringComparer.Ordinal);
-        if (!loopSymbols.TryAdd(loop.Iterator, loop.IteratorType))
+        var loopSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
+        if (!loopSymbols.TryAdd(loop.Iterator, new SlotSymbol(loop.IteratorType, IsMutable: false)))
         {
             Report("VARN3005", $"Slot '{loop.Iterator}' is declared more than once.", loop.Span);
         }
@@ -188,7 +221,7 @@ public sealed class VarnTypeChecker
     private VarnType CheckExpression(
         ExpressionSyntax expression,
         FunctionSyntax containingFunction,
-        IReadOnlyDictionary<string, VarnType> symbols)
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
     {
         switch (expression)
         {
@@ -197,7 +230,7 @@ public sealed class VarnTypeChecker
             case ReferenceExpressionSyntax reference:
                 if (symbols.TryGetValue(reference.Name, out var symbolType))
                 {
-                    return symbolType;
+                    return symbolType.Type;
                 }
 
                 Report("VARN3010", $"Slot '{reference.Name}' is not defined.", reference.Span);
@@ -212,7 +245,7 @@ public sealed class VarnTypeChecker
     private VarnType CheckCall(
         CallExpressionSyntax call,
         FunctionSyntax containingFunction,
-        IReadOnlyDictionary<string, VarnType> symbols)
+        IReadOnlyDictionary<string, SlotSymbol> symbols)
     {
         var argumentTypes = call.Arguments
             .Select(argument => CheckExpression(argument, containingFunction, symbols))
@@ -312,4 +345,6 @@ public sealed class VarnTypeChecker
 
     private void Report(string code, string message, SourceSpan span) =>
         _diagnostics.Add(new Diagnostic(code, message, span));
+
+    private readonly record struct SlotSymbol(VarnType Type, bool IsMutable);
 }

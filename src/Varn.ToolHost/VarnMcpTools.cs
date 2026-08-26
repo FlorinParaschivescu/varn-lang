@@ -18,7 +18,7 @@ public sealed class VarnMcpTools(VarnToolService service)
         OpenWorld = false)]
     [Description("Parse and statically validate Varn source without executing it.")]
     public VarnCheckResponse Check(
-        [Description("Complete Varn source text to validate.")] string source) =>
+        [Description("Complete Varn program source to validate. Include budget[steps=...] and at least one fn ... end block.")] string source) =>
         service.Check(source);
 
     [McpServerTool(
@@ -31,7 +31,7 @@ public sealed class VarnMcpTools(VarnToolService service)
         OpenWorld = false)]
     [Description("Validate Varn source and return its deterministic canonical structure.")]
     public VarnInspectionResponse Inspect(
-        [Description("Complete Varn source text to inspect.")] string source) =>
+        [Description("Complete Varn program source to inspect after it passes varn_check.")] string source) =>
         service.Inspect(source);
 
     [McpServerTool(
@@ -44,7 +44,7 @@ public sealed class VarnMcpTools(VarnToolService service)
         OpenWorld = false)]
     [Description("Validate and execute Varn source with explicit host capability and resource ceilings.")]
     public ValueTask<VarnRunResponse> RunAsync(
-        [Description("Complete Varn source text to execute.")] string source,
+        [Description("Complete checked Varn program source to execute.")] string source,
         [Description("Exact host capabilities to grant. Pass an empty array to grant none.")] string[] allowedCapabilities,
         [Description("Positive execution step ceiling, at most 1000000.")] long maxSteps,
         [Description("Positive captured-output character ceiling, at most 1000000.")] int maxOutputCharacters,

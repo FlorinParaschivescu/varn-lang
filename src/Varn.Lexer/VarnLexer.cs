@@ -11,6 +11,8 @@ public static class VarnLexer
         {
             ["fn"] = TokenKind.Fn,
             ["let"] = TokenKind.Let,
+            ["var"] = TokenKind.Var,
+            ["set"] = TokenKind.Set,
             ["ret"] = TokenKind.Ret,
             ["end"] = TokenKind.End,
             ["cap"] = TokenKind.Cap,

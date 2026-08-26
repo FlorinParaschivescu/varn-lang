@@ -24,6 +24,17 @@ public sealed record LetStatementSyntax(
     ExpressionSyntax Value,
     SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
 
+public sealed record VarStatementSyntax(
+    string Name,
+    VarnType Type,
+    ExpressionSyntax Value,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
+public sealed record SetStatementSyntax(
+    string Name,
+    ExpressionSyntax Value,
+    SourceSpan SourceSpan) : StatementSyntax(SourceSpan);
+
 public sealed record ExpressionStatementSyntax(
     ExpressionSyntax Expression,
     SourceSpan SourceSpan) : StatementSyntax(SourceSpan);

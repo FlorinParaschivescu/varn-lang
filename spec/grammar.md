@@ -13,8 +13,10 @@ parameters    = parameter, { ",", parameter } ;
 parameter     = slot, ":", type ;
 effects       = "!", "[", name-list?, "]" ;
 
-statement     = let | return | call | conditional | loop ;
+statement     = let | variable | assignment | return | call | conditional | loop ;
 let           = "let", slot, ":", type, expression, newline ;
+variable      = "var", slot, ":", type, expression, newline ;
+assignment    = "set", slot, expression, newline ;
 return        = "ret", expression, newline ;
 conditional   = "if", expression, newline,
                 statement*,

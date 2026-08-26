@@ -22,7 +22,16 @@ fn sum(@0:i64,@1:i64)->i64
 end
 ```
 
-Slots have numeric identities and are immutable in v0.1. A slot must be declared before use and cannot be declared twice in one scope. Every function body must end in `ret`, and its expression must exactly match the declared return type.
+Slots have numeric identities. `let` declares an immutable slot, while `var` declares a mutable slot and `set` explicitly replaces its value:
+
+```varn
+var @0:i64 0
+set @0 add(@0,1)
+```
+
+A slot must be declared before use and cannot be declared twice while an existing slot with the same numeric identity is in scope. Parameters, `let` slots, and loop iterators are immutable. An assignment target must be a visible mutable slot, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable slot; slots declared inside those blocks do not escape. Every function body must end in `ret`, and its expression must exactly match the declared return type.
+
+Mutation diagnostics preserve the existing slot rules: `VARN3005` reports duplicate declarations and `VARN3010` reports unknown or out-of-scope targets. `VARN3024` reports assignment to an immutable slot, and `VARN3025` reports an assignment type mismatch.
 
 Calls use a single canonical form: `name(arg0,arg1)`. The checker resolves program functions first and then module functions by exact parameter types. There are no implicit conversions.
 
@@ -55,7 +64,7 @@ This executes for `@0` values `0`, `1`, and `2`. The checker requires:
 - a nonnegative `max`;
 - `max` exactly equal to the statically known `end - start` iteration count.
 
-There is no implicit descending loop, unbounded loop, or `break` in v0.1. The runtime charges the loop statement, every iteration boundary, and every body operation to the program's step budget.
+There is no implicit descending loop, unbounded loop, or `break` in v0.1. The runtime charges the loop statement, every iteration boundary, and every body operation—including mutable declarations and assignments—to the program's step budget.
 
 ## Effects and budgets
 

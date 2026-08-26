@@ -96,10 +96,10 @@ public sealed class VarnEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
             ConsumeStep(function.Span);
-            var frame = new Dictionary<string, VarnValue>(StringComparer.Ordinal);
+            var frame = new Dictionary<string, SlotCell>(StringComparer.Ordinal);
             for (var index = 0; index < function.Parameters.Count; index++)
             {
-                frame.Add(function.Parameters[index].Name, arguments[index]);
+                frame.Add(function.Parameters[index].Name, new SlotCell(arguments[index]));
             }
 
             var result = await ExecuteStatementsAsync(function.Body, frame, cancellationToken).ConfigureAwait(false);
@@ -113,7 +113,7 @@ public sealed class VarnEngine
 
         private async ValueTask<StatementResult> ExecuteStatementsAsync(
             IReadOnlyList<StatementSyntax> statements,
-            Dictionary<string, VarnValue> frame,
+            Dictionary<string, SlotCell> frame,
             CancellationToken cancellationToken)
         {
             foreach (var statement in statements)
@@ -123,7 +123,18 @@ public sealed class VarnEngine
                 switch (statement)
                 {
                     case LetStatementSyntax let:
-                        frame.Add(let.Name, await EvaluateAsync(let.Value, frame, cancellationToken).ConfigureAwait(false));
+                        frame.Add(
+                            let.Name,
+                            new SlotCell(await EvaluateAsync(let.Value, frame, cancellationToken).ConfigureAwait(false)));
+                        break;
+                    case VarStatementSyntax variable:
+                        frame.Add(
+                            variable.Name,
+                            new SlotCell(await EvaluateAsync(variable.Value, frame, cancellationToken).ConfigureAwait(false)));
+                        break;
+                    case SetStatementSyntax assignment:
+                        frame[assignment.Name].Value = await EvaluateAsync(assignment.Value, frame, cancellationToken)
+                            .ConfigureAwait(false);
                         break;
                     case ExpressionStatementSyntax expressionStatement:
                         _ = await EvaluateAsync(expressionStatement.Expression, frame, cancellationToken).ConfigureAwait(false);
@@ -136,7 +147,7 @@ public sealed class VarnEngine
                         var selectedBody = condition.AsBool() ? conditional.ThenBody : conditional.ElseBody;
                         var branchResult = await ExecuteStatementsAsync(
                             selectedBody,
-                            new Dictionary<string, VarnValue>(frame, StringComparer.Ordinal),
+                            new Dictionary<string, SlotCell>(frame, StringComparer.Ordinal),
                             cancellationToken).ConfigureAwait(false);
                         if (branchResult.HasReturn)
                         {
@@ -149,9 +160,9 @@ public sealed class VarnEngine
                         {
                             cancellationToken.ThrowIfCancellationRequested();
                             ConsumeStep(loop.Span);
-                            var iterationFrame = new Dictionary<string, VarnValue>(frame, StringComparer.Ordinal)
+                            var iterationFrame = new Dictionary<string, SlotCell>(frame, StringComparer.Ordinal)
                             {
-                                [loop.Iterator] = VarnValue.From(current)
+                                [loop.Iterator] = new SlotCell(VarnValue.From(current))
                             };
                             var loopResult = await ExecuteStatementsAsync(loop.Body, iterationFrame, cancellationToken)
                                 .ConfigureAwait(false);
@@ -170,14 +181,14 @@ public sealed class VarnEngine
 
         private async ValueTask<VarnValue> EvaluateAsync(
             ExpressionSyntax expression,
-            IReadOnlyDictionary<string, VarnValue> frame,
+            IReadOnlyDictionary<string, SlotCell> frame,
             CancellationToken cancellationToken)
         {
             _currentSpan = expression.Span;
             return expression switch
             {
                 LiteralExpressionSyntax literal => new VarnValue(literal.Type, literal.Value),
-                ReferenceExpressionSyntax reference => frame[reference.Name],
+                ReferenceExpressionSyntax reference => frame[reference.Name].Value,
                 CallExpressionSyntax call => await InvokeCallAsync(call, frame, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.")
             };
@@ -185,7 +196,7 @@ public sealed class VarnEngine
 
         private async ValueTask<VarnValue> InvokeCallAsync(
             CallExpressionSyntax call,
-            IReadOnlyDictionary<string, VarnValue> frame,
+            IReadOnlyDictionary<string, SlotCell> frame,
             CancellationToken cancellationToken)
         {
             ConsumeStep(call.Span);
@@ -241,6 +252,11 @@ public sealed class VarnEngine
                     $"Execution exceeded the effective step budget of {_stepLimit}.",
                     span);
             }
+        }
+
+        private sealed class SlotCell(VarnValue value)
+        {
+            public VarnValue Value { get; set; } = value;
         }
 
         private readonly record struct StatementResult(bool HasReturn, VarnValue ReturnValue)
