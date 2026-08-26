@@ -30,6 +30,7 @@ For CLI changes, also run `check`, `inspect`, and `run` against `examples/hello.
 - Do not load or recommend untrusted .NET module assemblies. Modules execute as trusted host code until process isolation exists.
 - Keep the canonical formatter deterministic. Do not depend on hash-map iteration order or current culture.
 - Keep MCP stdout protocol-clean. Send logs to stderr and require explicit execution ceilings.
+- Add new `.sh` scripts with the executable bit set in git (`git update-index --chmod=+x`). Windows checkouts do not preserve it, and CI invokes scripts directly.
 - Avoid speculative subsystems. Prefer the smallest end-to-end feature that advances the current roadmap milestone.
 
 Read the relevant files in `spec/` and `ROADMAP.md` before changing language behavior.

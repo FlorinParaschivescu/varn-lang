@@ -40,7 +40,7 @@ jobs:
         run: dotnet run --project bench/Varn.Bench --configuration Release --no-build
 
       - name: Verify packaging
-        run: ./scripts/pack.sh
+        run: sh ./scripts/pack.sh
 
       - name: Verify formatting
         run: dotnet format Varn.slnx --verify-no-changes --no-restore --verbosity minimal
