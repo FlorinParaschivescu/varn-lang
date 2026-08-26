@@ -22,4 +22,33 @@ A `rec` declaration introduces a closed named record type. Its fields are ordere
 
 Mutable declarations, assignments, arguments, and returns require exact types. There are no implicit conversions. `Result` is planned but not specified yet.
 
-The standard core module provides `add`, `sub`, `mul`, and `div` for `i64` and `f64`. `eq` and `lt` return `bool` for supported exact operand types.
+## Standard operations
+
+The core module provides every operation below. Each is total, pure, deterministic, capability-free, and exactly typed: operands must match a listed signature exactly, because there are no implicit conversions.
+
+| Group | Operations | Operand types | Result |
+| --- | --- | --- | --- |
+| Arithmetic | `add`, `sub`, `mul`, `div` | `i64`, `f64` | same as operands |
+| Arithmetic | `mod` | `i64` | `i64` |
+| Arithmetic | `min`, `max` | `i64`, `f64` | same as operands |
+| Arithmetic | `abs` | `i64`, `f64` | same as operand |
+| Boolean | `and`, `or` | `bool` | `bool` |
+| Boolean | `not` | `bool` (one operand) | `bool` |
+| Equality | `eq`, `ne` | `i64`, `f64`, `bool`, `str` | `bool` |
+| Ordering | `lt`, `gt`, `lte`, `gte` | `i64`, `f64`, `str` | `bool` |
+| String | `str.length` | `str` | `i64` |
+| String | `str.concat` | `str`, `str` | `str` |
+| String | `str.contains`, `str.starts_with`, `str.ends_with` | `str`, `str` | `bool` |
+| List | `list.length` | `list[T]` | `i64` |
+| List | `list.get` | `list[T]`, `i64` | `T?` |
+| List | `list.contains` | `list[T]`, `T` | `bool` |
+
+`and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
+
+String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.length` counts UTF-16 code units in the bootstrap runtime.
+
+`f64` comparison follows IEEE 754 directly: every `eq`, `lt`, `gt`, `lte`, and `gte` involving NaN is `false`, and `ne` is `true`. `i64` and `str` compare by total order.
+
+`list.contains` charges one step per element examined.
+
+Deliberately absent until `Result` lands: numeric conversion, string-to-number parsing, and any other operation with an expected failure. Integer `div` and `mod` by zero currently surface as the runtime module failure `VARN4003`; `Result` will make that an explicit value.

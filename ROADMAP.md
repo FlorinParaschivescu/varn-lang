@@ -1,18 +1,61 @@
 # Varn roadmap
 
-Varn should advance through small, measurable vertical slices. Each milestone includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off in this file as it lands.
+## Where this is going
 
-## Practical test gates
+**Varn is the runtime you reach for when an AI writes logic that has to run in production: on the hot path, per request, without a container per execution.**
 
-1. [x] Real agent protocol loop: Codex generates, checks, repairs, inspects, and executes Varn through MCP.
-2. [x] Small data transformations: typed lists enable bounded map/filter/fold comparisons.
-3. [x] Structured application tasks: records and typed host inputs run one verified rule over many structured inputs. `Result` still owes explicit failure contracts.
-4. [ ] Controlled web/API tasks: structured network policy plus a trusted HTTP module.
-5. [ ] Community-hosted execution: isolated, versioned, signed module processes.
+That is the defensible niche. Running AI-generated Python safely needs a microVM or container per execution, which costs 50–200 ms of cold start and real per-tenant infrastructure. Varn runs in-process, deterministic, metered, and capability-gated, in microseconds. Unlike WebAssembly, which sandboxes at a lower level, Varn's effects and capabilities are legible in the same source the AI generates and reads, so a host can decide whether to run a program without executing it or analysing it.
 
-## Current focus — measure the thesis
+The realistic users are products with AI-authored business rules — discount, routing, validation, eligibility — and multi-tenant systems that must run untrusted logic inside a shared process. Varn is not trying to be a general-purpose language, and should refuse features that only make sense for one.
 
-Varn now runs the first scenario worth benchmarking, so the next slice measures whether the representation actually earns its cost instead of assuming it does. This is deliberately sequenced before `Result`: the outcome decides whether the rest of the roadmap is aimed correctly.
+## Stages to real use
+
+Each stage is defined by what somebody can actually do, not by what is architecturally next.
+
+| | Stage | Means | Status |
+| --- | --- | --- | --- |
+| S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
+| S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | **Current** |
+| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Not started |
+| S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Not started |
+| S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
+| S6 | Multi-tenant | Isolated, signed, versioned module processes. Bytecode and a VM only if measurement demands them. Covers M4 and M5. | Not started |
+
+M4, bytecode and the VM, is deliberately deferred. It is a performance and verification concern that matters at S6, and nothing before then needs it. Do not start it because it is interesting.
+
+Distribution (S4) intentionally comes after expressiveness (S2) and proof (S3). Shipping an easy install before a person can write `and` converts curiosity into a bad first impression, and first impressions are spent once.
+
+## Current focus — `Result` values
+
+The standard library and `Result` are coupled, so this follows immediately. Integer `div` and `mod` by zero currently escape as host exceptions reported as `VARN4003`, and numeric conversion and string-to-number parsing have nowhere to put an expected failure, so they were deliberately left out of the standard library.
+
+- [ ] Specify a closed `Result` type with explicit success and failure construction.
+- [ ] Require explicit inspection before extracting either side, in the style of `if let`.
+- [ ] Convert `div` and `mod` by zero from `VARN4003` into an explicit failure value.
+- [ ] Add the failable conversions the standard library is missing: numeric conversion and parsing.
+- [ ] Extend the checker, runtime, module SDK, JSON, and canonical format, with exhaustive tests.
+
+Exit criterion: an expected, in-domain failure is a value a program must handle, not a diagnostic that aborts the run.
+
+## Completed — standard library
+
+Varn exposed nine callable names and could not express `and`, which blocked both real rules and any honest benchmark.
+
+- [x] Add total boolean operations: `and`, `or`, `not`.
+- [x] Complete the comparison set: `gt`, `lte`, `gte`, `ne` over the exact types that already support `eq` and `lt`.
+- [x] Add the arithmetic a rule needs: `mod`, `abs`, `min`, `max`.
+- [x] Add ordinal string operations: length, concatenation, containment, and prefix/suffix tests.
+- [x] Add `list.contains` for every supported element type.
+- [x] Keep every addition total, pure, deterministic, capability-free, and exactly typed; defer failable operations to `Result`.
+- [x] Cover each operation with success and rejection tests, and specify the whole surface in `spec/types.md`.
+
+Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))`, with no helper function per condition.
+
+Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
+
+## Then — measure the thesis
+
+Once a person can write real rules, measure whether the representation earns its cost instead of assuming it does. The outcome decides whether the rest of this roadmap is aimed correctly.
 
 - [ ] Build a reproducible task set of small structured rules with known-correct answers.
 - [ ] Generate solutions in Varn and in Python-plus-JSON-tool-calls under identical conditions.
@@ -20,7 +63,18 @@ Varn now runs the first scenario worth benchmarking, so the next slice measures 
 - [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
 - [ ] Measure first-try correctness and correctness after N repairs, and publish the dataset and results.
 
-Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, the research question should be rewritten around verifiability rather than token cost.
+Exit criterion: a reproducible benchmark states where Varn wins and where it loses. The expected shape is that Varn loses on raw token cost, because models have seen no Varn and it has no operators, and wins on silent-wrong rate, because types are exact and nothing is coerced. If that holds, rewrite the research question around verifiability rather than token cost.
+
+## Then — make it installable
+
+- [ ] Publish `Varn.Cli` as a .NET global tool so getting started is one command, not a clone and a build.
+- [ ] Publish `Varn.Runtime` and `Varn.ModuleSdk` as NuGet packages, since embedding is the real use case.
+- [ ] Reduce MCP registration to one command that does not require building this repository first.
+- [ ] Consider a browser playground: Varn is .NET, so a WebAssembly build runs the whole check/inspect/run pipeline client-side with no backend and no abuse surface, which demonstrates the sandboxing claim rather than arguing it.
+
+## Delivered slices
+
+Varn advances through small, measurable vertical slices. Each includes syntax/representation, static validation, runtime behavior, diagnostics, specifications, examples, and tests. Completed work is checked off here as it lands.
 
 ## Completed — typed host inputs
 

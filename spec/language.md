@@ -133,6 +133,12 @@ Construction charges one step per field and field access charges one step, so th
 
 ## Conditions
 
+Build a condition with the boolean operations `and`, `or`, and `not` and the comparisons `eq`, `ne`, `lt`, `gt`, `lte`, and `gte`. They are ordinary calls, so both operands of `and` and `or` are always evaluated; use nested `if` when a branch must not run.
+
+```varn
+if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
+```
+
 An `if` condition must have type `bool`. Branch-local slots do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.
 
 ```varn

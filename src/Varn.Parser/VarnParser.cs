@@ -184,6 +184,9 @@ public static class VarnParser
             return statements;
         }
 
+        private static bool IsContextualKeyword(TokenKind kind) =>
+            kind is TokenKind.Max or TokenKind.From or TokenKind.To or TokenKind.In;
+
         private StatementSyntax ParseStatement()
         {
             return Current.Kind switch
@@ -391,6 +394,8 @@ public static class VarnParser
                     return new ReferenceExpressionSyntax(token.Text, token.Span);
                 case TokenKind.Identifier:
                     return ParseCall();
+                case var contextual when IsContextualKeyword(contextual) && Peek.Kind == TokenKind.LeftParen:
+                    return ParseCall();
                 default:
                     Report("VARN2004", $"Expected an expression, but found '{token.Text}'.", token.Span);
                     MoveNext();
@@ -474,7 +479,7 @@ public static class VarnParser
 
         private CallExpressionSyntax ParseCall()
         {
-            var name = Match(TokenKind.Identifier);
+            var name = MatchName();
             Match(TokenKind.LeftParen);
             var arguments = new List<ExpressionSyntax>();
             if (Current.Kind != TokenKind.RightParen)
@@ -585,9 +590,12 @@ public static class VarnParser
             return new Token(expected, string.Empty, Current.Span);
         }
 
+        private Token MatchName() =>
+            IsContextualKeyword(Current.Kind) ? TakeCurrent() : Match(TokenKind.Identifier);
+
         private Token MatchSimpleName(string kind)
         {
-            var token = Match(TokenKind.Identifier);
+            var token = MatchName();
             if (token.Text.Contains('.', StringComparison.Ordinal))
             {
                 Report("VARN2007", $"A {kind} name must not contain '.'.", token.Span);
@@ -606,6 +614,8 @@ public static class VarnParser
             _diagnostics.Add(new Diagnostic(code, message, span));
 
         private Token Current => _tokens[Math.Min(_position, _tokens.Count - 1)];
+
+        private Token Peek => _tokens[Math.Min(_position + 1, _tokens.Count - 1)];
 
         private void MoveNext()
         {

@@ -1,0 +1,17 @@
+# A compound business rule as one expression: no helper function per condition.
+budget[steps=300]
+
+rec Order(items:list[i64],customerTier:str)
+rec Settlement(total:i64,discount:i64,note:str)
+
+fn main(@0:Order)->Settlement
+    var @1:i64 0
+    each @2:i64 in @0.items max 16
+        set @1 add(@1,@2)
+    end
+    let @3:bool or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip"))
+    if and(gte(@1,1000),@3)
+        ret rec[Settlement](total=@1,discount=div(mul(@1,10),100),note=str.concat("tier ",@0.customerTier))
+    end
+    ret rec[Settlement](total=@1,discount=0,note="no discount")
+end

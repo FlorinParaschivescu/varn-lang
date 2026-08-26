@@ -248,6 +248,13 @@ public static class Program
         Assert(
             client.ServerInstructions?.Contains("Never write the data into the source", StringComparison.Ordinal) is true,
             "Expected guidance against embedding data in the source.");
+        Assert(
+            client.ServerInstructions?.Contains("Every callable operation:", StringComparison.Ordinal) is true,
+            "Expected an exhaustive standard library listing.");
+        Assert(
+            client.ServerInstructions?.Contains("There are no", StringComparison.Ordinal) is true &&
+            client.ServerInstructions?.Contains("do not invent a function", StringComparison.Ordinal) is true,
+            "Expected guidance that Varn has no operators and a closed function set.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();

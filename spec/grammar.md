@@ -54,4 +54,6 @@ name          = letter, { letter | digit | "_" } ;
 type          = ( identifier | "null" | "list", "[", type, "]" ), { "?" } ;
 ```
 
+`max`, `from`, `to`, and `in` are **contextual** keywords: they carry meaning only inside a `loop` or `each` header, and are ordinary names everywhere else. `max(3,9)` is a call, `rec Window(max:i64)` declares a field, and `each @0:i64 in @1 max 3` still parses. `fn`, `let`, `var`, `set`, `ret`, `end`, `if`, `else`, `loop`, `each`, `cap`, `budget`, `rec`, `list`, `some`, `none`, `true`, `false`, and `null` are reserved everywhere.
+
 Record and field names are identifiers without `.` (`VARN2007`), so they never collide with dotted module function names. Blocks are contextually terminated by `else` or `end`. Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.

@@ -28,7 +28,7 @@ On Unix-like systems:
 ./scripts/test.sh
 ```
 
-This runs 69 language/runtime tests and 9 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
+This runs 79 language/runtime tests and 9 adapter/MCP protocol tests. The language bootstrap test runner has no third-party test framework and can also be run directly:
 
 ```sh
 dotnet run --project tests/Varn.Tests
@@ -80,6 +80,18 @@ end
 ```
 
 A `rec` declaration is closed and immutable. Construction must set every declared field exactly once, missing, extra, duplicate, and mistyped fields each get their own diagnostic, and `@0.items` is the only way to read a field. Declaration order is the only field order the runtime, canonical projection, and JSON results use. See [examples/typed-records.varn](examples/typed-records.varn).
+
+## Writing a rule
+
+Varn has no operators. Every operation is a call, and the standard library is small enough to hold in context:
+
+```varn
+if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
+    ret rec[Settlement](total=@1,discount=div(mul(@1,10),100),note=str.concat("tier ",@0.customerTier))
+end
+```
+
+`add sub mul div mod min max abs` for `i64`/`f64`, `and or not` for `bool`, `eq ne` for every scalar, `lt gt lte gte` for `i64`/`f64`/`str`, `str.length str.concat str.contains str.starts_with str.ends_with`, and `list.length list.get list.contains`. All total, pure, and exactly typed, with no implicit conversions. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
 
 ## Host input: one program, many inputs
 
@@ -199,7 +211,7 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: a total standard library of arithmetic, boolean, comparison, string, and list operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction and static field access; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
 Intentionally deferred: `Result`, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 

@@ -93,6 +93,16 @@ public static class Program
             ("input binding requires exact value types", InputBindingRequiresExactValueTypes),
             ("input binds optionals, booleans, and floats", InputBindsOptionalsBooleansAndFloats),
             ("input binding precedes execution", InputBindingPrecedesExecution),
+            ("boolean operations combine conditions", BooleanOperationsCombineConditions),
+            ("boolean operations evaluate both operands", BooleanOperationsEvaluateBothOperands),
+            ("comparison set is complete over ordered types", ComparisonSetIsComplete),
+            ("f64 comparison follows IEEE NaN semantics", F64ComparisonFollowsIeee),
+            ("arithmetic covers mod, abs, min, and max", ArithmeticCoversModAbsMinMax),
+            ("string operations are ordinal", StringOperationsAreOrdinal),
+            ("list containment charges one step per element", ListContainmentChargesPerElement),
+            ("standard library rejects inexact operand types", StandardLibraryRejectsInexactTypes),
+            ("a compound rule needs no helper function", CompoundRuleNeedsNoHelperFunction),
+            ("loop keywords are usable as ordinary names", ContextualKeywordsAreUsableAsNames),
             ("runtime executes the first milestone", RuntimeExecutesMilestone),
             ("runtime requires a host capability grant", RuntimeRequiresHostGrant),
             ("runtime enforces the step budget", RuntimeEnforcesBudget),
@@ -1394,6 +1404,316 @@ public static class Program
             ret rec[Settlement](total=@1,discount=div(mul(@1,@2),100))
         end
         """;
+
+    private static async Task BooleanOperationsCombineConditions()
+    {
+        (string Expression, long Expected)[] cases =
+        [
+            ("and(true,true)", 1),
+            ("and(true,false)", 0),
+            ("or(false,true)", 1),
+            ("or(false,false)", 0),
+            ("not(false)", 1),
+            ("and(or(false,true),not(false))", 1)
+        ];
+
+        foreach (var (expression, expected) in cases)
+        {
+            var result = await EvaluateBoolAsync(expression).ConfigureAwait(false);
+            Assert(result == expected, $"Expected {expression} to select {expected}.");
+        }
+    }
+
+    private static async Task BooleanOperationsEvaluateBothOperands()
+    {
+        const string shortCircuitable = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:bool and(false,eq(1,1))
+                let @1:bool and(true,eq(1,1))
+                ret 0
+            end
+            """;
+        const string baseline = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:bool and(false,true)
+                let @1:bool and(true,true)
+                ret 0
+            end
+            """;
+        var withCalls = await CreateEngine().RunAsync(shortCircuitable).ConfigureAwait(false);
+        var withLiterals = await CreateEngine().RunAsync(baseline).ConfigureAwait(false);
+        Assert(withCalls.IsSuccess && withLiterals.IsSuccess, FormatDiagnostics(withCalls.Diagnostics));
+        Assert(
+            withCalls.Steps - withLiterals.Steps == 2,
+            "Expected both operands to be evaluated regardless of the first, charging one step per nested call.");
+    }
+
+    private static async Task ComparisonSetIsComplete()
+    {
+        (string Expression, long Expected)[] cases =
+        [
+            ("lt(1,2)", 1), ("lt(2,1)", 0),
+            ("gt(2,1)", 1), ("gt(1,2)", 0),
+            ("lte(2,2)", 1), ("lte(3,2)", 0),
+            ("gte(2,2)", 1), ("gte(1,2)", 0),
+            ("ne(1,2)", 1), ("ne(2,2)", 0),
+            ("eq(2,2)", 1),
+            ("""lt("a","b")""", 1),
+            ("""gt("b","a")""", 1),
+            ("""gte("a","a")""", 1),
+            ("""ne("a","b")""", 1),
+            ("ne(true,false)", 1),
+            ("lt(1.5,2.5)", 1),
+            ("gte(2.5,2.5)", 1)
+        ];
+
+        foreach (var (expression, expected) in cases)
+        {
+            var result = await EvaluateBoolAsync(expression).ConfigureAwait(false);
+            Assert(result == expected, $"Expected {expression} to select {expected}.");
+        }
+    }
+
+    private static async Task F64ComparisonFollowsIeee()
+    {
+        const string source = """
+            budget[steps=200]
+            fn main()->i64
+                let @0:f64 div(0.0,0.0)
+                var @1:i64 0
+                if eq(@0,@0)
+                    set @1 add(@1,1)
+                end
+                if lt(@0,1.0)
+                    set @1 add(@1,2)
+                end
+                if gte(@0,@0)
+                    set @1 add(@1,4)
+                end
+                if ne(@0,@0)
+                    set @1 add(@1,8)
+                end
+                ret @1
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(
+            result.ReturnValue?.AsI64() == 8,
+            "Expected NaN to compare false for eq, lt, and gte, and true only for ne.");
+    }
+
+    private static async Task ArithmeticCoversModAbsMinMax()
+    {
+        (string Expression, long Expected)[] cases =
+        [
+            ("mod(7,3)", 1),
+            ("mod(-7,3)", -1),
+            ("abs(-5)", 5),
+            ("min(3,9)", 3),
+            ("max(3,9)", 9)
+        ];
+
+        foreach (var (expression, expected) in cases)
+        {
+            var result = await EvaluateI64Async(expression).ConfigureAwait(false);
+            Assert(result == expected, $"Expected {expression} to be {expected}, got {result}.");
+        }
+
+        var floating = await CreateEngine().RunAsync("""
+            budget[steps=50]
+            fn main()->i64
+                let @0:f64 abs(-2.5)
+                let @1:f64 max(@0,1.0)
+                if eq(@1,2.5)
+                    ret 1
+                end
+                ret 0
+            end
+            """).ConfigureAwait(false);
+        Assert(floating.ReturnValue?.AsI64() == 1, "Expected f64 abs and max to work.");
+    }
+
+    private static async Task StringOperationsAreOrdinal()
+    {
+        (string Expression, long Expected)[] cases =
+        [
+            ("""str.contains("gold-tier","gold")""", 1),
+            ("""str.contains("gold-tier","GOLD")""", 0),
+            ("""str.starts_with("gold-tier","gold")""", 1),
+            ("""str.ends_with("gold-tier","tier")""", 1),
+            ("""str.ends_with("gold-tier","gold")""", 0),
+            ("""eq(str.concat("gold","-tier"),"gold-tier")""", 1),
+            ("""eq(str.length("gold"),4)""", 1)
+        ];
+
+        foreach (var (expression, expected) in cases)
+        {
+            var result = await EvaluateBoolAsync(expression).ConfigureAwait(false);
+            Assert(result == expected, $"Expected {expression} to select {expected}.");
+        }
+    }
+
+    private static async Task ListContainmentChargesPerElement()
+    {
+        const string source = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[str] list[str]("gold","silver")
+                if list.contains(@0,"silver")
+                    ret 1
+                end
+                ret 0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 1, "Expected list containment to find the element.");
+
+        const string longer = """
+            budget[steps=100]
+            fn main()->i64
+                let @0:list[str] list[str]("gold","silver","bronze")
+                if list.contains(@0,"silver")
+                    ret 1
+                end
+                ret 0
+            end
+            """;
+        var longerResult = await CreateEngine().RunAsync(longer).ConfigureAwait(false);
+        Assert(
+            longerResult.Steps - result.Steps == 2,
+            "Expected one construction step and one scan step for the extra element.");
+    }
+
+    private static Task StandardLibraryRejectsInexactTypes()
+    {
+        string[] sources =
+        [
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:bool and(true,1)
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:bool gt(1,1.0)
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64 str.length(1)
+                ret 0
+            end
+            """,
+            """
+            budget[steps=20]
+            fn main()->i64
+                let @0:list[i64] list[i64](1)
+                let @1:bool list.contains(@0,"1")
+                ret 0
+            end
+            """
+        ];
+
+        foreach (var source in sources)
+        {
+            AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3012");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task CompoundRuleNeedsNoHelperFunction()
+    {
+        const string source = """
+            budget[steps=300]
+            rec Order(items:list[i64],customerTier:str)
+            fn main(@0:Order)->i64
+                var @1:i64 0
+                each @2:i64 in @0.items max 16
+                    set @1 add(@1,@2)
+                end
+                if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
+                    ret div(mul(@1,10),100)
+                end
+                ret 0
+            end
+            """;
+        var check = CreateEngine().Check(source);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+
+        (string Input, long Expected)[] cases =
+        [
+            ("""{"items":[1200,850,300],"customerTier":"gold"}""", 235),
+            ("""{"items":[1200,850,300],"customerTier":"vip-plus"}""", 235),
+            ("""{"items":[1200,850,300],"customerTier":"basic"}""", 0),
+            ("""{"items":[100],"customerTier":"gold"}""", 0)
+        ];
+
+        foreach (var (input, expected) in cases)
+        {
+            var result = await RunWithInputAsync(source, input).ConfigureAwait(false);
+            Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+            Assert(result.ReturnValue?.AsI64() == expected, $"Expected {expected} for {input}.");
+        }
+    }
+
+    private static async Task ContextualKeywordsAreUsableAsNames()
+    {
+        const string source = """
+            budget[steps=200]
+            rec Window(max:i64,from:i64)
+            fn main()->i64
+                let @0:Window rec[Window](max=9,from=3)
+                let @1:list[i64] list[i64](1,2,3)
+                var @2:i64 0
+                each @3:i64 in @1 max 3
+                    set @2 add(@2,@3)
+                end
+                ret max(@2,min(@0.max,@0.from))
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(
+            result.ReturnValue?.AsI64() == 6,
+            "Expected 'max' and 'from' to work as record fields and calls while 'each ... max' still parses.");
+    }
+
+    private static async Task<long> EvaluateBoolAsync(string expression)
+    {
+        var result = await CreateEngine().RunAsync($$"""
+            budget[steps=200]
+            fn main()->i64
+                if {{expression}}
+                    ret 1
+                end
+                ret 0
+            end
+            """).ConfigureAwait(false);
+        Assert(result.IsSuccess, $"{expression}: {FormatDiagnostics(result.Diagnostics)}");
+        return result.ReturnValue!.Value.AsI64();
+    }
+
+    private static async Task<long> EvaluateI64Async(string expression)
+    {
+        var result = await CreateEngine().RunAsync($$"""
+            budget[steps=200]
+            fn main()->i64
+                ret {{expression}}
+            end
+            """).ConfigureAwait(false);
+        Assert(result.IsSuccess, $"{expression}: {FormatDiagnostics(result.Diagnostics)}");
+        return result.ReturnValue!.Value.AsI64();
+    }
 
     private static async Task RuntimeExecutesMilestone()
     {
