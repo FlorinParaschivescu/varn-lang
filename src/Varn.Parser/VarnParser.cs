@@ -184,6 +184,49 @@ public static class VarnParser
             return statements;
         }
 
+        private static readonly IReadOnlyDictionary<TokenKind, string>[] Precedence =
+        [
+            new Dictionary<TokenKind, string>
+            {
+                [TokenKind.EqualsEquals] = "eq",
+                [TokenKind.BangEquals] = "ne"
+            },
+            new Dictionary<TokenKind, string>
+            {
+                [TokenKind.Less] = "lt",
+                [TokenKind.Greater] = "gt",
+                [TokenKind.LessEquals] = "lte",
+                [TokenKind.GreaterEquals] = "gte"
+            },
+            new Dictionary<TokenKind, string>
+            {
+                [TokenKind.Plus] = "add",
+                [TokenKind.Minus] = "sub"
+            },
+            new Dictionary<TokenKind, string>
+            {
+                [TokenKind.Star] = "mul",
+                [TokenKind.Slash] = "div",
+                [TokenKind.Percent] = "mod"
+            }
+        ];
+
+        private static readonly IReadOnlyDictionary<string, string> Operators =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["add"] = "+",
+                ["sub"] = "-",
+                ["mul"] = "*",
+                ["div"] = "/",
+                ["mod"] = "%",
+                ["eq"] = "==",
+                ["ne"] = "!=",
+                ["lt"] = "<",
+                ["gt"] = ">",
+                ["lte"] = "<=",
+                ["gte"] = ">="
+            };
+
         private static bool IsContextualKeyword(TokenKind kind) =>
             kind is TokenKind.Max or TokenKind.From or TokenKind.To or TokenKind.In;
 
@@ -382,7 +425,61 @@ public static class VarnParser
             return new ExpressionStatementSyntax(expression, expression.Span);
         }
 
-        private ExpressionSyntax ParseExpression()
+        // Operators desugar to the same module calls the language always had, so the checker,
+        // interpreter, canonical projection, and step accounting see exactly what they saw before.
+        // Precedence runs equality < comparison < additive < multiplicative < field access.
+        private ExpressionSyntax ParseExpression() => ParseBinary(0);
+
+        private ExpressionSyntax ParseBinary(int level)
+        {
+            if (level >= Precedence.Length)
+            {
+                return ParseUnaryExpression();
+            }
+
+            var left = ParseBinary(level + 1);
+            while (Precedence[level].TryGetValue(Current.Kind, out var function))
+            {
+                var operatorToken = TakeCurrent();
+                var right = ParseBinary(level + 1);
+                left = new CallExpressionSyntax(function, [left, right], operatorToken.Span);
+            }
+
+            return left;
+        }
+
+        private ExpressionSyntax ParseUnaryExpression()
+        {
+            if (Current.Kind != TokenKind.Minus)
+            {
+                return ParsePostfixExpression();
+            }
+
+            // Negation exists only to write a negative number. Folding it into the literal keeps
+            // one numeric form and avoids inventing a typed zero for 'i64' and 'f64' alike.
+            var minus = TakeCurrent();
+            var operand = ParseUnaryExpression();
+            if (operand is LiteralExpressionSyntax literal)
+            {
+                if (literal.Value is long integer)
+                {
+                    return new LiteralExpressionSyntax(-integer, VarnType.I64, minus.Span);
+                }
+
+                if (literal.Value is double floating)
+                {
+                    return new LiteralExpressionSyntax(-floating, VarnType.F64, minus.Span);
+                }
+            }
+
+            Report(
+                "VARN2009",
+                "Unary '-' applies to a numeric literal. Write '0 - value' to negate a value.",
+                minus.Span);
+            return operand;
+        }
+
+        private ExpressionSyntax ParsePostfixExpression()
         {
             var expression = ParsePrimaryExpression();
             while (Current.Kind == TokenKind.Dot)
@@ -443,6 +540,11 @@ public static class VarnParser
                     return ParseErrExpression();
                 case TokenKind.Rec:
                     return ParseRecordExpression();
+                case TokenKind.LeftParen:
+                    MoveNext();
+                    var grouped = ParseExpression();
+                    Match(TokenKind.RightParen);
+                    return grouped;
                 case TokenKind.Identifier:
                     return Peek.Kind == TokenKind.LeftParen ? ParseCall() : ParseReference();
                 case var contextual when IsContextualKeyword(contextual):
@@ -574,6 +676,14 @@ public static class VarnParser
         private CallExpressionSyntax ParseCall()
         {
             var name = MatchName();
+            if (Operators.TryGetValue(name.Text, out var spelling))
+            {
+                Report(
+                    "VARN2008",
+                    $"'{name.Text}' is written as an operator. Use 'a {spelling} b' instead of '{name.Text}(a,b)'.",
+                    name.Span);
+            }
+
             Match(TokenKind.LeftParen);
             var arguments = new List<ExpressionSyntax>();
             if (Current.Kind != TokenKind.RightParen)

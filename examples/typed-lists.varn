@@ -3,7 +3,7 @@ budget[steps=200]
 fn sum(values:list[i64])->i64
     var total:i64 0
     each value:i64 in values max 4
-        set total add(total,value)
+        set total total + value
     end
     ret total
 end

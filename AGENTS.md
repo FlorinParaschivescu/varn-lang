@@ -10,14 +10,13 @@ These instructions apply to every task in this repository.
 
 ## Before completing a change
 
-Run:
+Run the gate, which mirrors `.github/workflows/ci.yml`:
 
 ```sh
-dotnet build Varn.slnx
-dotnet run --project tests/Varn.Tests --no-build
-dotnet run --project tests/Varn.Adapter.Tests --no-build
-dotnet format Varn.slnx --verify-no-changes --no-restore
+sh ./scripts/test.sh
 ```
+
+It restores from `Varn.slnx` rather than from a project, because that is what catches a solution entry pointing at a project that no longer exists. Keep it in step with CI: anything CI checks that the script does not is a gap that lets a push break `main`.
 
 For CLI changes, also run `check`, `inspect`, and `run` against `examples/hello.varn`. For module changes, build and load `Varn.ExampleModule` through `--module`. For adapter changes, exercise the real stdio MCP process through `Varn.Adapter.Tests`.
 

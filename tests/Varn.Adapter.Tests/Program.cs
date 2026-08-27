@@ -23,12 +23,12 @@ public static class Program
         fn total(a:list[i64])->i64
             var b:i64 0
             each c:i64 in a max 16
-                set b add(b,c)
+                set b b + c
             end
             ret b
         end
         fn rate(a:str)->i64
-            if eq(a,"gold")
+            if a == "gold"
                 ret 10
             end
             ret 0
@@ -36,7 +36,7 @@ public static class Program
         fn main(a:Order)->Settlement
             let b:i64 total(a.items)
             let c:i64 rate(a.customerTier)
-            ret rec[Settlement](total=b,discount=div(mul(b,c),100))
+            ret rec[Settlement](total=b,discount=b * c / 100)
         end
         """;
 
@@ -45,7 +45,7 @@ public static class Program
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
         fn rate(a:str)->result[i64]
-            if eq(a,"gold")
+            if a == "gold"
                 ret ok(10)
             end
             ret err[i64](str.concat("unknown tier: ",a))
@@ -53,10 +53,10 @@ public static class Program
         fn main(a:Order)->result[Settlement]
             var b:i64 0
             each c:i64 in a.items max 16
-                set b add(b,c)
+                set b b + c
             end
             if ok d:i64 rate(a.customerTier)
-                if ok e:i64 num.div(mul(b,d),100)
+                if ok e:i64 num.div(b * d,100)
                     ret ok(rec[Settlement](total=b,discount=e))
                 else err f:str
                     ret err[Settlement](f)
@@ -319,9 +319,9 @@ public static class Program
             client.ServerInstructions?.Contains("use num.div when the divisor is data", StringComparison.Ordinal) is true,
             "Expected guidance on checked division.");
         Assert(
-            client.ServerInstructions?.Contains("There are no", StringComparison.Ordinal) is true &&
+            client.ServerInstructions?.Contains("Arithmetic and comparison are infix", StringComparison.Ordinal) is true &&
             client.ServerInstructions?.Contains("do not invent a function", StringComparison.Ordinal) is true,
-            "Expected guidance that Varn has no operators and a closed function set.");
+            "Expected guidance on infix operators and a closed function set.");
 
         var tools = await client.ListToolsAsync().ConfigureAwait(false);
         var names = tools.Select(static tool => tool.Name).Order(StringComparer.Ordinal).ToArray();
@@ -415,7 +415,7 @@ public static class Program
                 let a:list[i64] list[i64](1,2,3,4)
                 var b:i64 0
                 each c:i64 in a max 4
-                    set b add(b,c)
+                    set b b + c
                 end
                 let d:i64? list.get(a,9)
                 if let e:i64 d
@@ -485,14 +485,14 @@ public static class Program
             fn total(a:list[i64])->i64
                 var b:i64 0
                 each c:i64 in a max 8
-                    set b add(b,c)
+                    set b b + c
                 end
                 ret b
             end
             fn settle(a:Order)->Settlement
                 let b:i64 total(a.items)
-                if eq(a.tier,"gold")
-                    ret rec[Settlement](total=b,discount=div(b,10))
+                if a.tier == "gold"
+                    ret rec[Settlement](total=b,discount=b / 10)
                 end
                 ret rec[Settlement](discount=0,total=b)
             end

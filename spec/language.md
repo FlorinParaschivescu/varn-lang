@@ -31,7 +31,7 @@ Capability names, function names, effects, and types are case-sensitive and comp
 
 ```varn
 fn sum(left:i64,right:i64)->i64
-    let total:i64 add(left,right)
+    let total:i64 left + right
     ret total
 end
 ```
@@ -40,7 +40,7 @@ A binding is named. `let` declares an immutable binding, while `var` declares a 
 
 ```varn
 var total:i64 0
-set total add(total,1)
+set total total + 1
 ```
 
 A binding must be declared before use and cannot be declared twice while an existing binding of the same name is in scope. Parameters, `let` bindings, and loop iterators are immutable. An assignment target must be a visible mutable binding, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable binding; bindings declared inside those blocks do not escape. Every path through a function body must reach `ret`, and its expression must exactly match the declared return type. A body that ends in `ret` always qualifies; so does one whose every branch returns, which is why no unreachable trailing `ret` is needed. A conditional counts only when both arms exist and both return. A `loop` or `each` never counts, because it may run zero times. `VARN3009` reports a body that can finish without returning.
@@ -50,6 +50,19 @@ Mutation diagnostics preserve the existing rules: `VARN3005` reports duplicate d
 A binding name is an identifier without a dot (`VARN2007`), which is what keeps it distinct from a dotted module function name. A name followed by `(` is a call and a name on its own is a reference, so `total` reads a binding and `total()` calls a function. Numeric slots (`@0`) were the earlier form and are gone; the lexer still recognizes `@` only to report `VARN1004`, which names the replacement.
 
 Calls use a single canonical form: `name(arg0,arg1)`. The checker resolves program functions first and then module functions by exact parameter types. There are no implicit conversions.
+
+## Operators
+
+Arithmetic and comparison are infix:
+
+```varn
+let discount:i64 total * percent / 100
+let eligible:bool total >= 1000
+```
+
+Precedence runs, tightest first: field access, then `*` `/` `%`, then `+` `-`, then `<` `>` `<=` `>=`, then `==` `!=`. All are left-associative and `( )` groups. Every operator desugars to the module call it always was, so the checker, the interpreter, the canonical projection, and the step budget see exactly what they saw before — an operator costs one step, like the call.
+
+One concept gets one form, so the call spelling is rejected: `add(a,b)` reports `VARN2008` and names `a + b`. A leading `-` negates a numeric literal (`-5`, `-1.5`) and nothing else; `VARN2009` reports `-value` and names `0 - value`, because a typed zero would have to guess between `i64` and `f64`.
 
 ## Typed optional values
 
@@ -91,7 +104,7 @@ Lists are immutable and contain at most 1,024 elements (`VARN3031`). Every liter
 ```varn
 var total:i64 0
 each value:i64 in values max 3
-    set total add(total,value)
+    set total total + value
 end
 ```
 
@@ -103,7 +116,7 @@ The source must be a list (`VARN3032`), the binding must match its element type 
 
 ```varn
 fn rate(tier:str)->result[i64]
-    if eq(tier,"gold")
+    if tier == "gold"
         ret ok(10)
     end
     ret err[i64](str.concat("unknown tier: ",tier))
@@ -171,16 +184,16 @@ Construction charges one step per field and field access charges one step, so th
 
 ## Conditions
 
-Build a condition with the boolean operations `and`, `or`, and `not` and the comparisons `eq`, `ne`, `lt`, `gt`, `lte`, and `gte`. They are ordinary calls, so both operands of `and` and `or` are always evaluated; use nested `if` when a branch must not run.
+Comparison is infix: `==`, `!=`, `<`, `>`, `<=`, and `>=`. The boolean operations `and`, `or`, and `not` are ordinary calls, so both operands of `and` and `or` are always evaluated; use nested `if` when a branch must not run.
 
 ```varn
-if and(gte(total,1000),or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip")))
+if and(total >= 1000,or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip")))
 ```
 
 An `if` condition must have type `bool`. Branch-local bindings do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.
 
 ```varn
-if eq(count,0)
+if count == 0
     ret 1
 else
     ret 2

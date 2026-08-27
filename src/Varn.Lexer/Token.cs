@@ -46,7 +46,18 @@ public enum TokenKind
     Bang,
     Equals,
     Question,
-    Dot
+    Dot,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    EqualsEquals,
+    BangEquals,
+    Less,
+    Greater,
+    LessEquals,
+    GreaterEquals
 }
 
 public sealed record Token(TokenKind Kind, string Text, SourceSpan Span);

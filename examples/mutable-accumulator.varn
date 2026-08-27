@@ -3,7 +3,7 @@ budget[steps=100]
 fn main()->i64
     var total:i64 0
     loop step:i64 from 0 to 4 max 4
-        set total add(total,step)
+        set total total + step
     end
     ret total
 end

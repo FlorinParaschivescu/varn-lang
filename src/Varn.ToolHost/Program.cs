@@ -26,7 +26,7 @@ builder.Services
             "Varn uses newline-delimited statements and end-delimited blocks, not braces. Return is ret. " +
             "Minimal shape: budget[steps=100] then fn main()->i64, statements, ret 0, end. " +
             "Bindings are named: let total:i64 0 declares an immutable one, var total:i64 0 a mutable one, " +
-            "set total add(total,1) assigns, and loop step:i64 from 0 to 4 max 4 ... end is a bounded loop. " +
+            "set total total + 1 assigns, and loop step:i64 from 0 to 4 max 4 ... end is a bounded loop. " +
             "Use i64? for an optional type, some(42) or none[i64] to construct it, and " +
             "if let value:i64 answer ... else ... end to safely bind a present value. " +
             "Use list[i64](1,2,3) for a homogeneous list, list.length(values) for its length, " +
@@ -43,12 +43,15 @@ builder.Services
             "data into the source and never regenerate the program per input. varn_check reports that contract as " +
             "contract.input; send matching JSON as the varn_run input argument and the same program runs unchanged " +
             "for every input. Input is validated before execution, so a rejected input consumes zero steps. " +
-            "Every callable operation: add sub mul div mod min max abs (i64/f64), and or not (bool), " +
-            "eq ne (i64/f64/bool/str), lt gt lte gte (i64/f64/str), str.length str.concat str.contains " +
-            "str.to_lower str.to_upper str.from_i64 str.from_f64 str.from_bool " +
-            "str.starts_with str.ends_with, list.length list.get list.append list.contains, io.print. There are no " +
-            "operators, so write and(gte(total,10),eq(tier,\"gold\")) rather than total>=10 && tier==\"gold\". " +
-            "Both operands of and/or are always evaluated. Nothing else exists: do not invent a function. " +
+            "Arithmetic and comparison are infix: + - * / % on i64/f64, == != on i64/f64/bool/str, " +
+            "< > <= >= on i64/f64/str. Precedence is the usual one and ( ) groups. Write total * 10 / 100, " +
+            "not mul then div as calls: the call spelling of an operator is rejected with VARN2008. " +
+            "A leading - negates a numeric literal only, so write 0 - value to negate a value. " +
+            "Every callable operation: min max abs (i64/f64), and or not (bool), str.length str.concat " +
+            "str.contains str.to_lower str.to_upper str.from_i64 str.from_f64 str.from_bool " +
+            "str.starts_with str.ends_with, list.length list.get list.append list.contains, io.print. " +
+            "and/or are calls and both operands are always evaluated; write nested if when a branch must " +
+            "not run. Nothing else exists: do not invent a function. " +
             "For a failure a caller must handle, use result[T]: build it with ok(value) or " +
             "err[T](\"message\"), and read it with if ok value:i64 <expr> ... else err reason:str ... end. " +
             "num.div num.mod num.to_i64 str.to_i64 str.to_f64 return result[T]; plain div and mod trap on a " +

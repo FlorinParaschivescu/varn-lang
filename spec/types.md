@@ -30,14 +30,14 @@ The core module provides every operation below. Each is total, pure, determinist
 
 | Group | Operations | Operand types | Result |
 | --- | --- | --- | --- |
-| Arithmetic | `add`, `sub`, `mul`, `div` | `i64`, `f64` | same as operands |
-| Arithmetic | `mod` | `i64` | `i64` |
+| Arithmetic | `+`, `-`, `*`, `/` | `i64`, `f64` | same as operands |
+| Arithmetic | `%` | `i64` | `i64` |
 | Arithmetic | `min`, `max` | `i64`, `f64` | same as operands |
 | Arithmetic | `abs` | `i64`, `f64` | same as operand |
 | Boolean | `and`, `or` | `bool` | `bool` |
 | Boolean | `not` | `bool` (one operand) | `bool` |
-| Equality | `eq`, `ne` | `i64`, `f64`, `bool`, `str` | `bool` |
-| Ordering | `lt`, `gt`, `lte`, `gte` | `i64`, `f64`, `str` | `bool` |
+| Equality | `==`, `!=` | `i64`, `f64`, `bool`, `str` | `bool` |
+| Ordering | `<`, `>`, `<=`, `>=` | `i64`, `f64`, `str` | `bool` |
 | String | `str.length` | `str` | `i64` |
 | String | `str.concat` | `str`, `str` | `str` |
 | String | `str.from_i64`, `str.from_f64`, `str.from_bool` | `i64` / `f64` / `bool` | `str` |
@@ -47,6 +47,10 @@ The core module provides every operation below. Each is total, pure, determinist
 | List | `list.get` | `list[T]`, `i64` | `T?` |
 | List | `list.append` | `list[T]`, `T` | `list[T]` |
 | List | `list.contains` | `list[T]`, `T` | `bool` (scalar `T` only) |
+
+Arithmetic and comparison are infix and desugar to those same operations, so an operator costs exactly what the call cost: one step, and the identical canonical projection. The call spelling is rejected (`VARN2008`), because one concept gets one form.
+
+A leading `-` negates a **numeric literal** and nothing else, so `-5` is a literal and `0 - value` is how a value is negated (`VARN2009`). This avoids a typed zero that would have to guess between `i64` and `f64`.
 
 `and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
 

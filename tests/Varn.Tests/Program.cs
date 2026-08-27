@@ -14,7 +14,7 @@ public static class Program
         budget[steps=100]
 
         fn sum(a:i64,b:i64)->i64
-            let c:i64 add(a,b)
+            let c:i64 a + b
             ret c
         end
 
@@ -49,6 +49,10 @@ public static class Program
             ("checker rejects duplicate mutable bindings", CheckerRejectsDuplicateMutableBinding),
             ("bindings are named and carry structured access", BindingsAreNamed),
             ("numeric slots report their replacement", NumericSlotsReportTheirReplacement),
+            ("operators follow precedence and grouping", OperatorsFollowPrecedence),
+            ("operators desugar to the calls they replace", OperatorsDesugarToCalls),
+            ("negation applies to numeric literals", NegationAppliesToNumericLiterals),
+            ("the call spelling of an operator is rejected", CallSpellingOfOperatorIsRejected),
             ("optional type and value contracts are explicit", OptionalTypeAndValueContractsAreExplicit),
             ("optionals branch over present values", OptionalsBranchOverPresentValues),
             ("optionals branch over absent values", OptionalsBranchOverAbsentValues),
@@ -303,7 +307,7 @@ public static class Program
             fn main()->i64
                 var a:i64 0
                 loop b:i64 from 0 to 4 max 4
-                    set a add(a,b)
+                    set a a + b
                 end
                 ret a
             end
@@ -664,7 +668,7 @@ public static class Program
                 let b:i64 list.length(a)
                 let c:i64? list.get(a,1)
                 if let d:i64 c
-                    ret add(b,d)
+                    ret b + d
                 end
                 ret 0
             end
@@ -704,7 +708,7 @@ public static class Program
                 let a:list[i64] list[i64](1,2,3,4)
                 var b:i64 0
                 each c:i64 in a max 4
-                    set b add(b,c)
+                    set b b + c
                 end
                 ret b
             end
@@ -895,7 +899,7 @@ public static class Program
             rec Pair(a:i64,b:i64)
             fn main()->i64
                 let a:Pair rec[Pair](a=1,b=2)
-                ret sub(a.a,a.b)
+                ret a.a - a.b
             end
             """;
         const string reordered = """
@@ -903,7 +907,7 @@ public static class Program
             rec Pair(a:i64,b:i64)
             fn main()->i64
                 let a:Pair rec[Pair](b=2,a=1)
-                ret sub(a.a,a.b)
+                ret a.a - a.b
             end
             """;
         var declaredCheck = CreateEngine().Check(declared);
@@ -1101,7 +1105,7 @@ public static class Program
             fn main(cart:Cart)->i64
                 var units:i64 0
                 each line:Line in cart.lines max 4
-                    set units add(units,weight(line))
+                    set units units + weight(line)
                 end
                 ret units
             end
@@ -1126,6 +1130,97 @@ public static class Program
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN1004");
+        return Task.CompletedTask;
+    }
+
+    private static async Task OperatorsFollowPrecedence()
+    {
+        const string source = """
+            budget[steps=200]
+            fn main()->i64
+                let a:i64 2 + 3 * 4
+                let b:i64 (2 + 3) * 4
+                let c:i64 100 / 10 / 2
+                let d:i64 17 % 5
+                let e:bool 1 + 1 == 2
+                let f:bool 2 * 3 > 5
+                if and(e,f)
+                    ret a + b + c + d
+                end
+                ret 0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        // 14 + 20 + 5 + 2: multiplication before addition, grouping over both, division left to right.
+        Assert(result.ReturnValue?.AsI64() == 41, $"Expected 41, got {result.ReturnValue?.AsI64()}.");
+    }
+
+    private static Task OperatorsDesugarToCalls()
+    {
+        // An operator is the call it always was, so the canonical projection and the step budget
+        // cannot tell the two spellings apart.
+        const string source = """
+            budget[steps=200]
+            fn main()->i64
+                let total:i64 10 * 20 / 100
+                ret total
+            end
+            """;
+        var check = CreateEngine().Check(source);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+        var canonical = CanonicalFormatter.Format(check.Program);
+        Assert(
+            canonical.Contains("A[div(A[mul(K[i64:10];K[i64:20])];K[i64:100])]", StringComparison.Ordinal),
+            $"Expected operators to project as the calls they replace, got {canonical}.");
+        return Task.CompletedTask;
+    }
+
+    private static async Task NegationAppliesToNumericLiterals()
+    {
+        const string source = """
+            budget[steps=200]
+            fn main()->i64
+                let a:i64 -5
+                let b:list[i64] list[i64](-1,2,-3)
+                let c:i64 a - 5
+                let d:i64 a-5
+                ret abs(c) + abs(d) + list.length(b) + a
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        // 10 + 10 + 3 + -5. A type annotation lexes as an identifier, so 'let a:i64 -5' proves
+        // negation is resolved by the parser rather than by what the lexer saw last.
+        Assert(result.ReturnValue?.AsI64() == 18, $"Expected 18, got {result.ReturnValue?.AsI64()}.");
+
+        const string negatedBinding = """
+            budget[steps=20]
+            fn main()->i64
+                let a:i64 5
+                ret -a
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(negatedBinding).Diagnostics, "VARN2009");
+    }
+
+    private static Task CallSpellingOfOperatorIsRejected()
+    {
+        const string source = """
+            budget[steps=40]
+            fn main()->i64
+                let a:i64 add(1,2)
+                if eq(a,3)
+                    ret 0
+                end
+                ret 1
+            end
+            """;
+        var diagnostics = CreateEngine().Check(source).Diagnostics;
+        AssertHasDiagnostic(diagnostics, "VARN2008");
+        Assert(
+            diagnostics.Any(static diagnostic => diagnostic.Message.Contains("a + b", StringComparison.Ordinal)),
+            "Expected the diagnostic to name the operator form.");
         return Task.CompletedTask;
     }
 
@@ -1217,7 +1312,7 @@ public static class Program
             rec Point(x:i64,y:i64)
             fn main()->i64
                 let a:Point test.point(40)
-                ret add(a.x,a.y)
+                ret a.x + a.y
             end
             """;
         var engine = CreateEngine();
@@ -1253,13 +1348,13 @@ public static class Program
         fn total(a:list[i64])->i64
             var b:i64 0
             each c:i64 in a max 8
-                set b add(b,c)
+                set b b + c
             end
             ret b
         end
         fn discount(a:i64,b:str)->i64
-            if eq(b,"gold")
-                ret div(a,10)
+            if b == "gold"
+                ret a / 10
             end
             ret 0
         end
@@ -1501,12 +1596,12 @@ public static class Program
         fn total(a:list[i64])->i64
             var b:i64 0
             each c:i64 in a max 16
-                set b add(b,c)
+                set b b + c
             end
             ret b
         end
         fn rate(a:str)->i64
-            if eq(a,"gold")
+            if a == "gold"
                 ret 10
             end
             ret 0
@@ -1514,7 +1609,7 @@ public static class Program
         fn main(a:Order)->Settlement
             let b:i64 total(a.items)
             let c:i64 rate(a.customerTier)
-            ret rec[Settlement](total=b,discount=div(mul(b,c),100))
+            ret rec[Settlement](total=b,discount=b * c / 100)
         end
         """;
 
@@ -1542,8 +1637,8 @@ public static class Program
         const string shortCircuitable = """
             budget[steps=100]
             fn main()->i64
-                let a:bool and(false,eq(1,1))
-                let b:bool and(true,eq(1,1))
+                let a:bool and(false,1 == 1)
+                let b:bool and(true,1 == 1)
                 ret 0
             end
             """;
@@ -1567,19 +1662,19 @@ public static class Program
     {
         (string Expression, long Expected)[] cases =
         [
-            ("lt(1,2)", 1), ("lt(2,1)", 0),
-            ("gt(2,1)", 1), ("gt(1,2)", 0),
-            ("lte(2,2)", 1), ("lte(3,2)", 0),
-            ("gte(2,2)", 1), ("gte(1,2)", 0),
-            ("ne(1,2)", 1), ("ne(2,2)", 0),
-            ("eq(2,2)", 1),
-            ("""lt("a","b")""", 1),
-            ("""gt("b","a")""", 1),
-            ("""gte("a","a")""", 1),
-            ("""ne("a","b")""", 1),
-            ("ne(true,false)", 1),
-            ("lt(1.5,2.5)", 1),
-            ("gte(2.5,2.5)", 1)
+            ("1 < 2", 1), ("2 < 1", 0),
+            ("2 > 1", 1), ("1 > 2", 0),
+            ("2 <= 2", 1), ("3 <= 2", 0),
+            ("2 >= 2", 1), ("1 >= 2", 0),
+            ("1 != 2", 1), ("2 != 2", 0),
+            ("2 == 2", 1),
+            (""" "a" < "b" """, 1),
+            (""" "b" > "a" """, 1),
+            (""" "a" >= "a" """, 1),
+            (""" "a" != "b" """, 1),
+            ("true != false", 1),
+            ("1.5 < 2.5", 1),
+            ("2.5 >= 2.5", 1)
         ];
 
         foreach (var (expression, expected) in cases)
@@ -1594,19 +1689,19 @@ public static class Program
         const string source = """
             budget[steps=200]
             fn main()->i64
-                let a:f64 div(0.0,0.0)
+                let a:f64 0.0 / 0.0
                 var b:i64 0
-                if eq(a,a)
-                    set b add(b,1)
+                if a == a
+                    set b b + 1
                 end
-                if lt(a,1.0)
-                    set b add(b,2)
+                if a < 1.0
+                    set b b + 2
                 end
-                if gte(a,a)
-                    set b add(b,4)
+                if a >= a
+                    set b b + 4
                 end
-                if ne(a,a)
-                    set b add(b,8)
+                if a != a
+                    set b b + 8
                 end
                 ret b
             end
@@ -1622,8 +1717,8 @@ public static class Program
     {
         (string Expression, long Expected)[] cases =
         [
-            ("mod(7,3)", 1),
-            ("mod(-7,3)", -1),
+            ("7 % 3", 1),
+            ("-7 % 3", -1),
             ("abs(-5)", 5),
             ("min(3,9)", 3),
             ("max(3,9)", 9)
@@ -1640,7 +1735,7 @@ public static class Program
             fn main()->i64
                 let a:f64 abs(-2.5)
                 let b:f64 max(a,1.0)
-                if eq(b,2.5)
+                if b == 2.5
                     ret 1
                 end
                 ret 0
@@ -1658,11 +1753,11 @@ public static class Program
             ("""str.starts_with("gold-tier","gold")""", 1),
             ("""str.ends_with("gold-tier","tier")""", 1),
             ("""str.ends_with("gold-tier","gold")""", 0),
-            ("""eq(str.concat("gold","-tier"),"gold-tier")""", 1),
-            ("""eq(str.length("gold"),4)""", 1),
-            ("""eq(str.to_lower("GoLd"),"gold")""", 1),
-            ("""eq(str.to_upper("gold"),"GOLD")""", 1),
-            ("""eq(str.to_lower("gold"),"GOLD")""", 0)
+            (""" str.concat("gold","-tier") == "gold-tier" """, 1),
+            ("""str.length("gold") == 4""", 1),
+            (""" str.to_lower("GoLd") == "gold" """, 1),
+            (""" str.to_upper("gold") == "GOLD" """, 1),
+            (""" str.to_lower("gold") == "GOLD" """, 0)
         ];
 
         foreach (var (expression, expected) in cases)
@@ -1718,7 +1813,7 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let a:bool gt(1,1.0)
+                let a:bool 1 > 1.0
                 ret 0
             end
             """,
@@ -1755,10 +1850,10 @@ public static class Program
             fn main(a:Order)->i64
                 var b:i64 0
                 each c:i64 in a.items max 16
-                    set b add(b,c)
+                    set b b + c
                 end
-                if and(gte(b,1000),or(eq(a.customerTier,"gold"),str.starts_with(a.customerTier,"vip")))
-                    ret div(mul(b,10),100)
+                if and(b >= 1000,or(a.customerTier == "gold",str.starts_with(a.customerTier,"vip")))
+                    ret b * 10 / 100
                 end
                 ret 0
             end
@@ -1792,7 +1887,7 @@ public static class Program
                 let b:list[i64] list[i64](1,2,3)
                 var c:i64 0
                 each d:i64 in b max 3
-                    set c add(c,d)
+                    set c c + d
                 end
                 ret max(c,min(a.max,a.from))
             end
@@ -2028,7 +2123,7 @@ public static class Program
         var trapped = await CreateEngine().RunAsync("""
             budget[steps=40]
             fn main()->i64
-                ret div(10,0)
+                ret 10 / 0
             end
             """).ConfigureAwait(false);
         Assert(!trapped.IsSuccess, "Expected total div by zero to remain a trap.");
@@ -2042,7 +2137,7 @@ public static class Program
             ("""str.to_i64("nope")""", "not an i64"),
             ("""str.to_f64("nope")""", "not an f64"),
             ("num.to_i64(1.5)", "not a whole number"),
-            ("num.to_i64(div(0.0,0.0))", "not a finite number")
+            ("num.to_i64(0.0 / 0.0)", "not a finite number")
         ];
 
         foreach (var (expression, expected) in failures)
@@ -2055,7 +2150,7 @@ public static class Program
             budget[steps=100]
             fn main()->i64
                 if ok a:i64 str.to_i64("41")
-                    ret add(a,1)
+                    ret a + 1
                 end
                 ret -1
             end
@@ -2067,7 +2162,7 @@ public static class Program
             budget[steps=100]
             fn main()->i64
                 let a:f64 num.to_f64(3)
-                if gt(a,2.5)
+                if a > 2.5
                     ret 1
                 end
                 ret 0
@@ -2185,10 +2280,10 @@ public static class Program
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
         fn rate(a:str)->result[i64]
-            if eq(a,"gold")
+            if a == "gold"
                 ret ok(10)
             end
-            if eq(a,"basic")
+            if a == "basic"
                 ret ok(0)
             end
             ret err[i64](str.concat("unknown tier: ",a))
@@ -2196,10 +2291,10 @@ public static class Program
         fn main(a:Order)->result[Settlement]
             var b:i64 0
             each c:i64 in a.items max 16
-                set b add(b,c)
+                set b b + c
             end
             if ok d:i64 rate(a.customerTier)
-                if ok e:i64 num.div(mul(b,d),100)
+                if ok e:i64 num.div(b * d,100)
                     ret ok(rec[Settlement](total=b,discount=e))
                 else err f:str
                     ret err[Settlement](f)
@@ -2260,7 +2355,7 @@ public static class Program
             fn main(a:Cart)->Total
                 var b:i64 0
                 each c:Line in a.lines max 32
-                    set b add(b,mul(c.qty,c.priceCents))
+                    set b b + c.qty * c.priceCents
                 end
                 ret rec[Total](cents=b)
             end
@@ -2291,7 +2386,7 @@ public static class Program
             fn main(a:Nums)->Kept
                 var b:list[i64] list[i64]()
                 each c:i64 in a.values max 32
-                    if gt(c,10)
+                    if c > 10
                         set b list.append(b,c)
                     end
                 end
@@ -2337,7 +2432,7 @@ public static class Program
             rec Order(totalCents:i64,limitCents:i64)
             rec Receipt(totalCents:i64)
             fn main(a:Order)->result[Receipt]
-                if gt(a.totalCents,a.limitCents)
+                if a.totalCents > a.limitCents
                     ret err[Receipt](str.concat("over limit of ",str.from_i64(a.limitCents)))
                 end
                 ret ok(rec[Receipt](totalCents=a.totalCents))
@@ -2350,9 +2445,9 @@ public static class Program
             rejected.ReturnValue!.Value.AsResult().Value.Value as string == "over limit of 10000",
             "Expected the failing value inside the message.");
 
-        Assert(await EvaluateBoolAsync("""eq(str.from_f64(1.5),"1.5")""").ConfigureAwait(false) == 1,
+        Assert(await EvaluateBoolAsync(""" str.from_f64(1.5) == "1.5" """).ConfigureAwait(false) == 1,
             "Expected invariant f64 formatting.");
-        Assert(await EvaluateBoolAsync("""eq(str.from_bool(true),"true")""").ConfigureAwait(false) == 1,
+        Assert(await EvaluateBoolAsync(""" str.from_bool(true) == "true" """).ConfigureAwait(false) == 1,
             "Expected bool formatting.");
     }
 
@@ -2460,11 +2555,11 @@ public static class Program
                     end
                 end
                 var b:i64 0
-                set b add(b,1)
+                set b b + 1
                 let c:i64? some(1)
                 let d:i64? none[i64]
                 if let e:i64 c
-                    set b add(b,e)
+                    set b b + e
                 end
                 ret b
             end

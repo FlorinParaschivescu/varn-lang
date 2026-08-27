@@ -67,7 +67,7 @@ budget[steps=100]
 fn main()->i64 ![console]
     let left:i64 10
     let right:i64 20
-    let total:i64 add(left,right)
+    let total:i64 left + right
     io.print(total)
     ret 0
 end
@@ -107,15 +107,15 @@ A `rec` declaration is closed and immutable. Construction must set every declare
 
 ## Writing a rule
 
-Varn has no operators. Every operation is a call, and the standard library is small enough to hold in context:
+Arithmetic and comparison are infix with the usual precedence. Everything else is a call, and the standard library is small enough to hold in context:
 
 ```varn
-if and(gte(total,1000),or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip")))
-    ret rec[Settlement](total=total,discount=div(mul(total,10),100),note=str.concat("tier ",order.customerTier))
+if and(total >= 1000,or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip")))
+    ret rec[Settlement](total=total,discount=total * 10 / 100,note=str.concat("tier ",order.customerTier))
 end
 ```
 
-`add sub mul div mod min max abs` for `i64`/`f64`, `and or not` for `bool`, `eq ne` for every scalar, `lt gt lte gte` for `i64`/`f64`/`str`, `str.length str.concat str.to_lower str.to_upper str.contains str.starts_with str.ends_with`, and `list.length list.get list.contains`. All total, pure, and exactly typed, with no implicit conversions. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
+`+ - * / %` for `i64`/`f64`, `== !=` for every scalar, `< > <= >=` for `i64`/`f64`/`str`, plus the calls `min max abs`, `and or not`, `str.length str.concat str.to_lower str.to_upper str.contains str.starts_with str.ends_with`, and `list.length list.get list.append list.contains`. All total, pure, and exactly typed, with no implicit conversions. Each operator desugars to the call it replaces, so it costs one step and projects identically; writing the call spelling instead is rejected, because one concept gets one form. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
 
 ## Expected failure is a value
 
@@ -147,8 +147,8 @@ rec Line(sku:str,qty:i64,unitCents:i64)
 rec Cart(lines:list[Line],tier:str)
 
 each line:Line in cart.lines max 64
-    set subtotal add(subtotal,mul(line.qty,line.unitCents))
-    if eq(line.unitCents,0)
+    set subtotal subtotal + line.qty * line.unitCents
+    if line.unitCents == 0
         set free list.append(free,line.sku)
     end
 end

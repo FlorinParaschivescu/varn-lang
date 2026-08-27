@@ -111,15 +111,12 @@ public static class VarnLexer
                 continue;
             }
 
-            if (char.IsAsciiDigit(current) || (current == '-' && position + 1 < source.Length && char.IsAsciiDigit(source[position + 1])))
+            // '-' is always the operator. Negation is folded into the literal by the parser, which
+            // is the only place that knows whether a value can already be standing: 'let a:i64 -5'
+            // and 'total - 5' are indistinguishable here, because a type lexes as an identifier.
+            if (char.IsAsciiDigit(current))
             {
                 var start = position;
-                if (source[position] == '-')
-                {
-                    position++;
-                    column++;
-                }
-
                 while (position < source.Length && char.IsAsciiDigit(source[position]))
                 {
                     position++;
@@ -197,9 +194,20 @@ public static class VarnLexer
                 continue;
             }
 
-            if (current == '-' && position + 1 < source.Length && source[position + 1] == '>')
+            var next = position + 1 < source.Length ? source[position + 1] : '\0';
+            var twoCharacter = (current, next) switch
             {
-                tokens.Add(new Token(TokenKind.Arrow, "->", span));
+                ('-', '>') => TokenKind.Arrow,
+                ('=', '=') => TokenKind.EqualsEquals,
+                ('!', '=') => TokenKind.BangEquals,
+                ('<', '=') => TokenKind.LessEquals,
+                ('>', '=') => TokenKind.GreaterEquals,
+                _ => (TokenKind?)null
+            };
+
+            if (twoCharacter is { } twoCharacterKind)
+            {
+                tokens.Add(new Token(twoCharacterKind, source[position..(position + 2)], span));
                 position += 2;
                 column += 2;
                 continue;
@@ -217,6 +225,13 @@ public static class VarnLexer
                 '=' => TokenKind.Equals,
                 '?' => TokenKind.Question,
                 '.' => TokenKind.Dot,
+                '+' => TokenKind.Plus,
+                '-' => TokenKind.Minus,
+                '*' => TokenKind.Star,
+                '/' => TokenKind.Slash,
+                '%' => TokenKind.Percent,
+                '<' => TokenKind.Less,
+                '>' => TokenKind.Greater,
                 _ => (TokenKind?)null
             };
 
@@ -239,4 +254,5 @@ public static class VarnLexer
 
     private static bool IsIdentifierCharacter(char value) =>
         char.IsAsciiLetterOrDigit(value) || value is '_' or '.';
+
 }
