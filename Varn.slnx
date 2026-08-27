@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/bench/">
-    <Project Path="bench/Varn.Bench/Varn.Bench.csproj" />
-  </Folder>
   <Folder Name="/examples/" />
   <Folder Name="/examples/modules/">
     <Project Path="examples/modules/Varn.ExampleModule/Varn.ExampleModule.csproj" />

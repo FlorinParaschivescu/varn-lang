@@ -230,11 +230,11 @@ The adapter has been exercised through real Codex check–repair–inspect–run
 ## Practical test readiness
 
 - Available now: AI syntax generation, stable-diagnostic repair, canonical inspection, deterministic execution, module/API contract experiments, small bounded typed-list transformations, closed structured records, and one verified program reused across many structured host inputs.
-- Next: a reproducible benchmark against Python plus JSON tool calls, measuring silent-wrong rate and tokens to verified-correct.
+- Next: freeze the surface, then ship Varn as a skill an agent loads to write a checked rule in fewer tokens than it would spend writing the same rule in a general-purpose language.
 - After structured network policy and a trusted HTTP module: controlled webpage and API experiments.
 - After process isolation: community execution of modules that are not already trusted host code.
 
-The current tests are real end-to-end protocol tests, but Varn remains too small for a representative application benchmark. The roadmap treats each readiness gate as an explicit deliverable.
+The current tests are real end-to-end protocol tests, but Varn remains too small to carry a representative application. The roadmap treats each readiness gate as an explicit deliverable.
 
 ## Modules first
 
@@ -249,16 +249,6 @@ varn run program.varn --module path/to/MyModule.dll --allow my.capability
 This is the intended path for future web access: a network module can expose narrow functions such as `net.get` without adding HTTP access to the language core. See [the module contract](spec/modules.md).
 
 > A loaded .NET module is trusted host code and is not sandboxed by Varn. Capability checks control whether Varn programs may call it; they cannot prevent a malicious module assembly from using .NET directly. Only load modules you trust. The MCP adapter deliberately does not load external assemblies.
-
-## Benchmark
-
-```sh
-dotnet run --project bench/Varn.Bench
-```
-
-Six rule tasks — four over flat scalars, two over structured input: a list of records, a nested record, an optional record — with reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the sixteen defects written in both languages Varn is strictly better on seven, tied on nine, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. The margin is widest on the structured tasks, where four of eight paired defects are refused before execution. Varn costs about 1.17x the tokens, meaning 17 percent more than Python; on `contact-routing` it costs less.
-
-No model is called, so this measures mechanism rather than frequency. [bench/README.md](bench/README.md) states what the numbers do and do not show, and where model-generated solutions plug in.
 
 ## Repository map
 
@@ -280,7 +270,6 @@ tests/
   Varn.Tests/             dependency-free language/runtime test runner
   Varn.Adapter.Tests/     adapter policy and MCP protocol test runner
 examples/                 programs and an external module
-bench/                    task set, solutions, and the grading harness
 spec/                     current language, tooling, adapter, and extension contracts
 ```
 

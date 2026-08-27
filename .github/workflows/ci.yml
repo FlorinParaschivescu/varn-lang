@@ -36,9 +36,6 @@ jobs:
       - name: Run adapter and MCP protocol tests
         run: dotnet run --project tests/Varn.Adapter.Tests --configuration Release --no-build
 
-      - name: Run the benchmark harness
-        run: dotnet run --project bench/Varn.Bench --configuration Release --no-build
-
       - name: Verify packaging
         run: sh ./scripts/pack.sh
 

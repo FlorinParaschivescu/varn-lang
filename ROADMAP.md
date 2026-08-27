@@ -16,7 +16,7 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | --- | --- | --- | --- |
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
 | S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done, confirmed by a dogfooding pass |
-| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; surface being frozen, then the model-generated half |
+| S3 | Proven | A reproducible measurement states where Varn wins and where it loses. | Withdrawn: the first harness was removed, to be rebuilt once the surface is frozen |
 | S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Built, unpublished |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
 | S6 | Multi-tenant | Isolated, signed, versioned module processes, only if a real deployment demands them. See **Not planned**. | Not started |
@@ -43,11 +43,22 @@ Everything downstream depends on the surface being final, so this comes first an
 - [ ] **One form per concept.** No aliases, no second spelling. Choice costs deliberation and adds variance to generation.
 - [ ] **Inference where the information is already in scope** — `err(...)` from the declared return type, list and record element types from context.
 
-Exit criterion: the surface is frozen, and the benchmark's correct solutions cost fewer tokens in Varn than in Python. Named bindings took the ratio from 1.36x to 1.17x, with one task (`contact-routing`) already below parity.
+Exit criterion: the surface is frozen and every remaining item can be built against it without a rewrite.
 
-### 2. The oracle loop
+### 2. Ship Varn as a skill
 
-The checker is a correctness oracle, which means Varn can manufacture its own training corpus. Nothing decides whether arbitrary Python is correct; `varn check` plus a task's cases decides Varn exactly. This is the only mechanism by which "a model will know Varn" becomes true rather than hopeful, and it is not available to any language whose correctness is undecidable.
+The point of the language is that an agent spends fewer tokens getting a correct, checked rule than it would writing the same rule in a general-purpose language. A skill is how that reaches a real agent: it loads the language, hands over `check` and `run`, and is the thing to measure.
+
+- [ ] One document that is sufficient on its own to write correct Varn, kept as small as the frozen surface allows. This is the language card, and it is the skill's body.
+- [ ] Worked examples covering the shapes that actually recur: a rule over a record, a fold over a list of records, an optional that must be checked, a failure carried as a value.
+- [ ] The check-repair loop written down as a procedure, so a diagnostic leads to an edit rather than a regeneration.
+- [ ] Wire it to the existing MCP tools so the skill can check and run without leaving the session.
+
+Exit criterion: an agent with no prior exposure loads the skill and writes a correct rule on the first or second attempt, and the whole exchange costs fewer tokens than the same rule written and verified in Python.
+
+### 3. The oracle loop
+
+The checker is a correctness oracle, which means Varn can manufacture its own training corpus. Nothing decides whether arbitrary Python is correct; `varn check` plus a set of cases decides Varn exactly. This is the only mechanism by which "a model will know Varn" becomes true rather than hopeful, and it is not available to any language whose correctness is undecidable.
 
 - [ ] Generate (task, program, verdict) triples mechanically against the frozen surface.
 - [ ] Label every triple with the checker's verdict and the graded case outcomes.
@@ -56,7 +67,7 @@ The checker is a correctness oracle, which means Varn can manufacture its own tr
 
 Exit criterion: a reproducible corpus large enough to train on, produced without a human labelling a single example.
 
-### 3. Structured diagnostics, and repair as a patch
+### 4. Structured diagnostics, and repair as a patch
 
 - [ ] Diagnostics carry a machine-applicable payload — code, node, and the specific fault — rather than a sentence written for a person.
 - [ ] Structural edit operations keyed by stable node identifiers.
@@ -64,26 +75,11 @@ Exit criterion: a reproducible corpus large enough to train on, produced without
 
 Exit criterion: fixing a one-field defect costs an order of magnitude fewer tokens than regenerating the program that contains it.
 
-### 4. The language card
+### Later — rebuild the measurement
 
-- [ ] One document, sufficient on its own to write correct Varn, kept as small as the frozen surface allows.
+The first benchmark — six rule tasks, hand-written defects in Varn and Python, and a grading harness — was removed along with its Python arm. It measured *mechanism*, which defects each language's checker can catch, and never *frequency*, which is how often a generator actually makes each one. Rebuilding it belongs after the surface is frozen and the skill exists, because both change what there is to measure.
 
-It is the in-context bootstrap until training lands, and the seed prompt for the oracle loop. It is not the headline measurement; the token cost of a program is.
-
-### 5. The benchmark's model-generated half
-
-The harness measures *mechanism* — which defects each language's checker can catch. What is missing is *frequency*: how often a real generator makes each mistake.
-
-- [x] Build a reproducible task set of small structured rules with known-correct answers.
-- [x] Classify every outcome as correct, rejected before execution, crashed, or silently wrong.
-- [x] Measure source size on one ruler across both languages.
-- [x] Grow the task set past flat scalars: `invoice-lines` takes a list of records and returns a list-valued field, `contact-routing` takes a nested record and an optional record.
-- [ ] Generate solutions with a real model in both languages under identical conditions. A fresh session given only the card, with no repository access, is a clean generator and needs no API key.
-- [ ] Measure **silent-wrong frequency** rather than silent-wrong mechanism.
-- [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
-- [ ] Report distributions across models and temperatures, not a single run.
-
-Exit criterion: a reproducible benchmark states where Varn wins and where it loses, with frequencies rather than examples.
+Its last reading, for the record and with all the caveats it carried: on sixteen defects written in both languages Varn was strictly better on seven, tied on nine, worse on none, and cost about 1.17x the proxy tokens of Python. Treat that as a starting point to re-derive, not as a result to cite.
 
 ## Completed — `Result` values
 
@@ -101,7 +97,7 @@ Still open: the failure side is always `str`. A structured failure type would le
 
 ## Completed — standard library
 
-Varn exposed nine callable names and could not express `and`, which blocked both real rules and any honest benchmark.
+Varn exposed nine callable names and could not express `and`, which blocked real rules and any honest comparison.
 
 - [x] Add total boolean operations: `and`, `or`, `not`.
 - [x] Complete the comparison set: `gt`, `lte`, `gte`, `ne` over the exact types that already support `eq` and `lt`.
@@ -127,7 +123,7 @@ Varn was used to write ordinary programs — payroll with overtime, an over-limi
 
 The input binder, contract projection, canonical format, JSON results, and MCP guidance all follow the relaxed type rules. `contract.records` now carries every declared shape, so a host can resolve a nested or list element type name without parsing source.
 
-What this said about the benchmark: its four tasks were all flat scalar-in, scalar-out, because that was all Varn could express when they were written, so the task set understated how far Varn was from real work. Two structured tasks have since been added on top of the relaxed rules — `invoice-lines` and `contact-routing` — and they are where Varn's margin is widest: four of their eight paired defects are refused before execution, against three of eight on the flat tasks.
+What this said about the language: before the relaxed rules, a Varn program could only take scalars in and return scalars out, which is not the shape host data has. Lists of records, nested records, and optional records are what real rules read, and they are also where a declared contract catches the most — a misnamed nested field, a missing list-valued output field, an unguarded optional record are all refused before execution.
 
 ## Completed — packaging
 
@@ -147,19 +143,11 @@ Still open: nothing is published to nuget.org. That needs an owner account, a si
 
 - [ ] Varn is .NET, so a WebAssembly build runs the whole check/inspect/run pipeline client-side with no backend and no abuse surface, which demonstrates the sandboxing claim rather than arguing it.
 
-## Completed — benchmark harness
+## Removed — benchmark harness
 
-- [x] Four structured rule tasks with cases aimed at real traps: inclusive boundaries, division by an empty count, truncation toward zero, absent optionals, exact string matching.
-- [x] Reference solutions plus a defect set in both languages, each recording the outcome it was written to have.
-- [x] Outcome classification, exact grading, size measurement, and a committed report.
-- [x] A self-check: the harness exits non-zero if any solution grades differently from its recorded intent, and runs in CI.
+Built, used, and then deleted along with its Python arm. It graded hand-written solutions by how each language *fails* — rejected before execution, crashed, or silently wrong — over six small rule tasks.
 
-Findings, with the caveats in `bench/README.md` attached:
-
-- On the eight defects written in both languages, Varn is strictly better on three, tied on five, worse on none. Paired silent-wrong count is **Varn 4, Python 6**.
-- The three Varn catches are shape and type errors. The five ties are pure logic errors, which no type system catches, and they are the majority. **Varn's advantage is real and bounded.**
-- Varn costs about **1.36x** the approximate tokens of Python, concentrated in `result` handling; the most failure-heavy task is 1.95x. The earlier prediction that Varn would lose badly on token cost was too pessimistic.
-- The first revision of this benchmark overstated Varn by showing `case-insensitive` as not expressible, when Varn merely lacked `str.to_lower`. The function was added, the defect is now written in both languages, and it is a tie. Varn's paired silent-wrong count rose from 3 to 4 as a result.
+What it established, and what should be re-derived rather than assumed when it is rebuilt: Varn converts type and shape faults into rejections before execution, ties on pure logic errors because no type system catches those, and pays a token premium concentrated in `result` handling. It measured mechanism, never frequency, because no model was ever called. See **Later — rebuild the measurement**.
 
 ## Delivered slices
 
@@ -301,7 +289,7 @@ In parallel with M1–M3:
 1. [x] Keep the CLI stable and machine-readable.
 2. [x] Add structured JSON diagnostics and execution results.
 3. [x] Build a thin tool adapter around `check`, `inspect`, and `run`.
-4. [ ] Package authoring guidance as a Codex skill after the syntax stabilizes.
-5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, repairs it, and compares silent-wrong rate and tokens to verified-correct against Python.
+4. [ ] Package authoring guidance as a skill after the surface freezes. This is now item 2 of the current focus.
+5. [ ] Add an eval loop where an AI generates Varn, receives diagnostics, and repairs it, counting tokens to verified-correct. Belongs with the rebuilt measurement.
 
 This lets AI agents use Varn early while keeping the language experiment measurable.
