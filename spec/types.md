@@ -8,7 +8,7 @@ The bootstrap checker recognizes five program-visible types:
 - `str`: UTF-16 host string in the bootstrap runtime;
 - `null`: the single null value.
 
-`any` exists only in module signatures, currently for functions such as `io.print`. Programs cannot declare `any` slots or parameters.
+`any` exists only in module signatures, currently for functions such as `io.print`. Programs cannot declare `any` bindings or parameters.
 
 Appending `?` creates an optional over a scalar or a declared record. `some(value)` produces a present optional and `none[type]` produces an absent optional with the same exact type. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
 
@@ -18,7 +18,7 @@ Appending `?` creates an optional over a scalar or a declared record. `some(valu
 
 `list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none[T]`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
 
-A `rec` declaration introduces a closed named record type. Its fields are ordered by declaration, unique, and typed as a scalar, an optional scalar, or a list of scalars. A record type name is not a scalar: it cannot be an optional element type (`VARN3028`), a list element type (`VARN3029`), or another record's field type (`VARN3038`).
+A `rec` declaration introduces a closed named record type. Its fields are ordered by declaration, unique, and typed as a contained type: a scalar or a declared record, or an optional or list of one. Nesting stops there, so a list of lists, an optional optional, and a result in a field are all rejected. A record that can reach itself through its fields is rejected with `VARN3049`.
 
 `rec[Name](field=value,...)` constructs a record and requires every declared field exactly once. `value.field` reads one declared field and has that field's declared type. Records are immutable, are compared by nothing (there is no `eq` overload for them), and expose no dynamic property access.
 
@@ -50,7 +50,7 @@ The core module provides every operation below. Each is total, pure, determinist
 
 `and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
 
-String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err[T](str.concat("over limit of ",str.from_i64(@0.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
+String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err[T](str.concat("over limit of ",str.from_i64(order.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
 
 `f64` comparison follows IEEE 754 directly: every `eq`, `lt`, `gt`, `lte`, and `gte` involving NaN is `false`, and `ne` is `true`. `i64` and `str` compare by total order.
 

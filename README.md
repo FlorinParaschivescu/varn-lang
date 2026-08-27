@@ -65,10 +65,10 @@ cap[console.write]
 budget[steps=100]
 
 fn main()->i64 ![console]
-    let @0:i64 10
-    let @1:i64 20
-    let @2:i64 add(@0,@1)
-    io.print(@2)
+    let left:i64 10
+    let right:i64 20
+    let total:i64 add(left,right)
+    io.print(total)
     ret 0
 end
 ```
@@ -97,21 +97,21 @@ budget[steps=300]
 rec Order(items:list[i64],tier:str)
 rec Settlement(total:i64,discount:i64)
 
-fn settle(@0:Order)->Settlement
-    let @1:i64 total(@0.items)
-    ret rec[Settlement](total=@1,discount=discount(@1,@0.tier))
+fn settle(order:Order)->Settlement
+    let amount:i64 total(order.items)
+    ret rec[Settlement](total=amount,discount=discount(amount,order.tier))
 end
 ```
 
-A `rec` declaration is closed and immutable. Construction must set every declared field exactly once, missing, extra, duplicate, and mistyped fields each get their own diagnostic, and `@0.items` is the only way to read a field. Declaration order is the only field order the runtime, canonical projection, and JSON results use. See [examples/typed-records.varn](examples/typed-records.varn).
+A `rec` declaration is closed and immutable. Construction must set every declared field exactly once, missing, extra, duplicate, and mistyped fields each get their own diagnostic, and `order.items` is the only way to read a field. Declaration order is the only field order the runtime, canonical projection, and JSON results use. See [examples/typed-records.varn](examples/typed-records.varn).
 
 ## Writing a rule
 
 Varn has no operators. Every operation is a call, and the standard library is small enough to hold in context:
 
 ```varn
-if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
-    ret rec[Settlement](total=@1,discount=div(mul(@1,10),100),note=str.concat("tier ",@0.customerTier))
+if and(gte(total,1000),or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip")))
+    ret rec[Settlement](total=total,discount=div(mul(total,10),100),note=str.concat("tier ",order.customerTier))
 end
 ```
 
@@ -120,11 +120,11 @@ end
 ## Expected failure is a value
 
 ```varn
-fn main(@0:Order)->result[Settlement]
-    if ok @3:i64 rate(@0.customerTier)
-        ret ok(rec[Settlement](total=@1,discount=@3))
-    else err @6:str
-        ret err[Settlement](@6)
+fn main(order:Order)->result[Settlement]
+    if ok percent:i64 rate(order.customerTier)
+        ret ok(rec[Settlement](total=total,discount=percent))
+    else err reason:str
+        ret err[Settlement](reason)
     end
 end
 ```
@@ -146,22 +146,22 @@ A record field, a list element, and an optional may each hold another declared r
 rec Line(sku:str,qty:i64,unitCents:i64)
 rec Cart(lines:list[Line],tier:str)
 
-each @3:Line in @0.lines max 64
-    set @1 add(@1,mul(@3.qty,@3.unitCents))
-    if eq(@3.unitCents,0)
-        set @2 list.append(@2,@3.sku)
+each line:Line in cart.lines max 64
+    set subtotal add(subtotal,mul(line.qty,line.unitCents))
+    if eq(line.unitCents,0)
+        set free list.append(free,line.sku)
     end
 end
 ```
 
-`list.append` returns a new list, so `each` plus a mutable slot is how a program builds one. Access chains through nesting as `@0.home.city`. A record that can reach itself is rejected (`VARN3049`), because no host input could supply it. See [examples/cart-lines.varn](examples/cart-lines.varn).
+`list.append` returns a new list, so `each` plus a mutable binding is how a program builds one. Access chains through nesting as `cart.owner.city`. A record that can reach itself is rejected (`VARN3049`), because no host input could supply it. See [examples/cart-lines.varn](examples/cart-lines.varn).
 
 ## Host input: one program, many inputs
 
 Give `main` a record parameter and the data arrives from the host instead of the source:
 
 ```varn
-fn main(@0:Order)->Settlement
+fn main(order:Order)->Settlement
 ```
 
 ```powershell
@@ -256,7 +256,7 @@ This is the intended path for future web access: a network module can expose nar
 dotnet run --project bench/Varn.Bench
 ```
 
-Four structured rule tasks, reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the eight defects written in both languages Varn is strictly better on three, tied on five, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. Varn costs about 1.36x the tokens, meaning 36 percent more than Python.
+Six rule tasks — four over flat scalars, two over structured input: a list of records, a nested record, an optional record — with reference solutions and a defect set in Varn and Python, graded by how each language *fails*: rejected before execution, crashed, or silently wrong. On the sixteen defects written in both languages Varn is strictly better on seven, tied on nine, and worse on none, converting type and shape errors into rejections. The ties are pure logic errors, which no type system catches, and they are the majority. The margin is widest on the structured tasks, where four of eight paired defects are refused before execution. Varn costs about 1.17x the tokens, meaning 17 percent more than Python; on `contact-routing` it costs less.
 
 No model is called, so this measures mechanism rather than frequency. [bench/README.md](bench/README.md) states what the numbers do and do not show, and where model-generated solutions plug in.
 
@@ -286,7 +286,7 @@ spec/                     current language, tooling, adapter, and extension cont
 
 ## v0.1 boundary
 
-Implemented now: explicit `result` values for expected failures; a standard library of arithmetic, boolean, comparison, string, list, conversion, and parsing operations; scalar literals; typed functions; explicit immutable and mutable numeric slots; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction, nesting, and static field access; lists of records and list building; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
+Implemented now: explicit `result` values for expected failures; a standard library of arithmetic, boolean, comparison, string, list, conversion, and parsing operations; scalar literals; typed functions; explicit immutable and mutable named bindings; statically checked assignment; typed optional construction and safe extraction; immutable homogeneous lists with bounded traversal and safe indexing; closed immutable records with exact construction, nesting, and static field access; lists of records and list building; validated structured host input and structured results; user and module calls; arithmetic and comparisons; typed conditions; statically bounded loops; explicit effects and capabilities; separate host grants; step budgets; console output; deterministic inspection; structured JSON results; external module loading; and a policy-gated local MCP adapter.
 
 Intentionally deferred: structured result failure types, bytecode, the VM, richer resource models, a final binary/token canonical encoding, signed module manifests, and process/OS sandboxing.
 

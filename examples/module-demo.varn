@@ -2,7 +2,7 @@ cap[console.write]
 budget[steps=100]
 
 fn main()->i64 ![console]
-    let @0:i64 text.length("machine-native")
-    io.print(@0)
+    let width:i64 text.length("machine-native")
+    io.print(width)
     ret 0
 end

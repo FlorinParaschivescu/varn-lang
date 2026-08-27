@@ -1,0 +1,108 @@
+{
+  "id": "invoice-lines",
+  "title": "Cart invoice from line items",
+  "prompt": "Each cart line has a sku, a quantity, and a unit price in whole cents. Sum quantity times unit price over the lines to a subtotal in cents, sum the quantities to a unit count, and collect the sku of every line priced at zero into a list, in input order. A line whose quantity is below 1 is an error naming the first such sku as \"invalid quantity for sku: <sku>\". Return the subtotal, the unit count, and the free skus.",
+  "contract": {
+    "input": "Cart(lines:list[Line(sku:str, qty:i64, unitCents:i64)])",
+    "result": "result[Invoice(subtotalCents:i64, unitCount:i64, freeSkus:list[str])]"
+  },
+  "cases": [
+    {
+      "name": "mixed",
+      "input": {
+        "lines": [
+          { "sku": "WIDGET", "qty": 2, "unitCents": 500 },
+          { "sku": "GIZMO", "qty": 1, "unitCents": 1250 },
+          { "sku": "SAMPLE", "qty": 3, "unitCents": 0 }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "subtotalCents": 2250,
+          "unitCount": 6,
+          "freeSkus": ["SAMPLE"]
+        }
+      },
+      "trap": "the unit count sums the quantities, not the lines: 2 + 1 + 3 is 6, not 3"
+    },
+    {
+      "name": "no-free-items",
+      "input": {
+        "lines": [
+          { "sku": "BOLT", "qty": 4, "unitCents": 125 }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "subtotalCents": 500,
+          "unitCount": 4,
+          "freeSkus": []
+        }
+      },
+      "trap": "the free-sku list is declared, so it must be present and empty, never omitted"
+    },
+    {
+      "name": "empty-cart",
+      "input": {
+        "lines": []
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "subtotalCents": 0,
+          "unitCount": 0,
+          "freeSkus": []
+        }
+      }
+    },
+    {
+      "name": "zero-quantity",
+      "input": {
+        "lines": [
+          { "sku": "WIDGET", "qty": 0, "unitCents": 500 }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "error": "invalid quantity for sku: WIDGET"
+      },
+      "trap": "a quantity of zero is below 1 and is an error, not a line that contributes nothing"
+    },
+    {
+      "name": "first-invalid-wins",
+      "input": {
+        "lines": [
+          { "sku": "ALPHA", "qty": 1, "unitCents": 100 },
+          { "sku": "BETA", "qty": -2, "unitCents": 100 },
+          { "sku": "GAMMA", "qty": -3, "unitCents": 100 }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "error": "invalid quantity for sku: BETA"
+      },
+      "trap": "the error names the first offending sku, so the scan must stop rather than record the last one"
+    },
+    {
+      "name": "free-skus-keep-input-order",
+      "input": {
+        "lines": [
+          { "sku": "ZEBRA", "qty": 1, "unitCents": 0 },
+          { "sku": "APPLE", "qty": 2, "unitCents": 300 },
+          { "sku": "MANGO", "qty": 1, "unitCents": 0 }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "subtotalCents": 600,
+          "unitCount": 4,
+          "freeSkus": ["ZEBRA", "MANGO"]
+        }
+      },
+      "trap": "the free skus keep input order; they are not sorted"
+    }
+  ]
+}

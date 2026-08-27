@@ -20,23 +20,23 @@ public static class Program
         budget[steps=300]
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
-        fn total(@0:list[i64])->i64
-            var @1:i64 0
-            each @2:i64 in @0 max 16
-                set @1 add(@1,@2)
+        fn total(a:list[i64])->i64
+            var b:i64 0
+            each c:i64 in a max 16
+                set b add(b,c)
             end
-            ret @1
+            ret b
         end
-        fn rate(@0:str)->i64
-            if eq(@0,"gold")
+        fn rate(a:str)->i64
+            if eq(a,"gold")
                 ret 10
             end
             ret 0
         end
-        fn main(@0:Order)->Settlement
-            let @1:i64 total(@0.items)
-            let @2:i64 rate(@0.customerTier)
-            ret rec[Settlement](total=@1,discount=div(mul(@1,@2),100))
+        fn main(a:Order)->Settlement
+            let b:i64 total(a.items)
+            let c:i64 rate(a.customerTier)
+            ret rec[Settlement](total=b,discount=div(mul(b,c),100))
         end
         """;
 
@@ -44,25 +44,25 @@ public static class Program
         budget[steps=300]
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
-        fn rate(@0:str)->result[i64]
-            if eq(@0,"gold")
+        fn rate(a:str)->result[i64]
+            if eq(a,"gold")
                 ret ok(10)
             end
-            ret err[i64](str.concat("unknown tier: ",@0))
+            ret err[i64](str.concat("unknown tier: ",a))
         end
-        fn main(@0:Order)->result[Settlement]
-            var @1:i64 0
-            each @2:i64 in @0.items max 16
-                set @1 add(@1,@2)
+        fn main(a:Order)->result[Settlement]
+            var b:i64 0
+            each c:i64 in a.items max 16
+                set b add(b,c)
             end
-            if ok @3:i64 rate(@0.customerTier)
-                if ok @4:i64 num.div(mul(@1,@3),100)
-                    ret ok(rec[Settlement](total=@1,discount=@4))
-                else err @5:str
-                    ret err[Settlement](@5)
+            if ok d:i64 rate(a.customerTier)
+                if ok e:i64 num.div(mul(b,d),100)
+                    ret ok(rec[Settlement](total=b,discount=e))
+                else err f:str
+                    ret err[Settlement](f)
                 end
-            else err @6:str
-                ret err[Settlement](@6)
+            else err g:str
+                ret err[Settlement](g)
             end
             ret err[Settlement]("unreachable")
         end
@@ -286,25 +286,25 @@ public static class Program
             client.ServerInstructions?.Contains("varn_check", StringComparison.Ordinal) is true,
             "Expected server workflow instructions.");
         Assert(
-            client.ServerInstructions?.Contains("loop @1:i64 from 0 to 4 max 4", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("loop step:i64 from 0 to 4 max 4", StringComparison.Ordinal) is true,
             "Expected compact Varn syntax guidance.");
         Assert(
-            client.ServerInstructions?.Contains("if let @1:i64 @0", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("if let value:i64 answer", StringComparison.Ordinal) is true,
             "Expected compact optional syntax guidance.");
         Assert(
             client.ServerInstructions?.Contains("list[i64](1,2,3)", StringComparison.Ordinal) is true,
             "Expected compact typed-list syntax guidance.");
         Assert(
-            client.ServerInstructions?.Contains("each @1:i64 in @0 max 3", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("each value:i64 in values max 3", StringComparison.Ordinal) is true,
             "Expected compact bounded list traversal guidance.");
         Assert(
             client.ServerInstructions?.Contains("rec Order(items:list[i64],tier:str)", StringComparison.Ordinal) is true,
             "Expected compact record declaration guidance.");
         Assert(
-            client.ServerInstructions?.Contains("read a field with @0.items", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("read a field with order.items", StringComparison.Ordinal) is true,
             "Expected compact record field access guidance.");
         Assert(
-            client.ServerInstructions?.Contains("fn main(@0:Order)->Settlement", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("fn main(order:Order)->Settlement", StringComparison.Ordinal) is true,
             "Expected host input contract guidance.");
         Assert(
             client.ServerInstructions?.Contains("Never write the data into the source", StringComparison.Ordinal) is true,
@@ -313,7 +313,7 @@ public static class Program
             client.ServerInstructions?.Contains("Every callable operation:", StringComparison.Ordinal) is true,
             "Expected an exhaustive standard library listing.");
         Assert(
-            client.ServerInstructions?.Contains("if ok @1:i64", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("if ok value:i64", StringComparison.Ordinal) is true,
             "Expected result inspection guidance.");
         Assert(
             client.ServerInstructions?.Contains("use num.div when the divisor is data", StringComparison.Ordinal) is true,
@@ -347,16 +347,16 @@ public static class Program
 
         const string repairedSource = """
             budget[steps=100]
-            fn maybe(@0:bool)->i64?
-                if @0
+            fn maybe(a:bool)->i64?
+                if a
                     ret some(42)
                 end
                 ret none[i64]
             end
             fn main()->i64
-                let @0:i64? maybe(true)
-                if let @1:i64 @0
-                    ret @1
+                let a:i64? maybe(true)
+                if let b:i64 a
+                    ret b
                 else
                     ret 0
                 end
@@ -375,7 +375,7 @@ public static class Program
         var inspect = StructuredRoot(inspectResult.StructuredContent);
         Assert(inspect.GetProperty("success").GetBoolean(), "Expected MCP inspect to accept optional source.");
         Assert(
-            inspect.GetProperty("canonical").GetString()?.Contains("J(@1:i64,V[@0])", StringComparison.Ordinal) is true,
+            inspect.GetProperty("canonical").GetString()?.Contains("J(b:i64,V[a])", StringComparison.Ordinal) is true,
             "Expected MCP canonical inspection to include safe optional extraction.");
 
         var runResult = await client.CallToolAsync(
@@ -394,8 +394,8 @@ public static class Program
         const string invalidListSource = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](1,2,3,4)
-                each @1:bool in @0 max 4
+                let a:list[i64] list[i64](1,2,3,4)
+                each b:bool in a max 4
                 end
                 ret 0
             end
@@ -412,16 +412,16 @@ public static class Program
         const string listSource = """
             budget[steps=200]
             fn main()->i64
-                let @0:list[i64] list[i64](1,2,3,4)
-                var @1:i64 0
-                each @2:i64 in @0 max 4
-                    set @1 add(@1,@2)
+                let a:list[i64] list[i64](1,2,3,4)
+                var b:i64 0
+                each c:i64 in a max 4
+                    set b add(b,c)
                 end
-                let @3:i64? list.get(@0,9)
-                if let @4:i64 @3
+                let d:i64? list.get(a,9)
+                if let e:i64 d
                     ret -1
                 else
-                    ret @1
+                    ret b
                 end
                 ret 0
             end
@@ -439,7 +439,7 @@ public static class Program
         var canonical = listInspect.GetProperty("canonical").GetString();
         Assert(canonical?.Contains("Q[i64](K[i64:1];K[i64:2];K[i64:3];K[i64:4])", StringComparison.Ordinal) is true,
             "Expected MCP canonical inspection to include the typed list.");
-        Assert(canonical?.Contains("H(@2:i64,V[@0],4)", StringComparison.Ordinal) is true,
+        Assert(canonical?.Contains("H(c:i64,V[a],4)", StringComparison.Ordinal) is true,
             "Expected MCP canonical inspection to include bounded list traversal.");
 
         var listRunResult = await client.CallToolAsync(
@@ -460,8 +460,8 @@ public static class Program
             budget[steps=300]
             rec Order(items:list[i64],tier:str)
             fn main()->i64
-                let @0:Order rec[Order](items=list[i64](1200,850,300))
-                ret list.length(@0.lines)
+                let a:Order rec[Order](items=list[i64](1200,850,300))
+                ret list.length(a.lines)
             end
             """;
         var invalidRecordResult = await client.CallToolAsync(
@@ -482,23 +482,23 @@ public static class Program
             budget[steps=300]
             rec Order(items:list[i64],tier:str)
             rec Settlement(total:i64,discount:i64)
-            fn total(@0:list[i64])->i64
-                var @1:i64 0
-                each @2:i64 in @0 max 8
-                    set @1 add(@1,@2)
+            fn total(a:list[i64])->i64
+                var b:i64 0
+                each c:i64 in a max 8
+                    set b add(b,c)
                 end
-                ret @1
+                ret b
             end
-            fn settle(@0:Order)->Settlement
-                let @1:i64 total(@0.items)
-                if eq(@0.tier,"gold")
-                    ret rec[Settlement](total=@1,discount=div(@1,10))
+            fn settle(a:Order)->Settlement
+                let b:i64 total(a.items)
+                if eq(a.tier,"gold")
+                    ret rec[Settlement](total=b,discount=div(b,10))
                 end
-                ret rec[Settlement](discount=0,total=@1)
+                ret rec[Settlement](discount=0,total=b)
             end
             fn main()->i64
-                let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
-                ret settle(@0).discount
+                let a:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+                ret settle(a).discount
             end
             """;
         var recordCheckResult = await client.CallToolAsync(
@@ -519,10 +519,10 @@ public static class Program
             recordCanonical?.Contains("W[Settlement](total=K[i64:0]", StringComparison.Ordinal) is false,
             "Expected canonical record construction to normalize to declared field order.");
         Assert(
-            recordCanonical?.Contains("W[Settlement](total=V[@1];discount=K[i64:0])", StringComparison.Ordinal) is true,
+            recordCanonical?.Contains("W[Settlement](total=V[b];discount=K[i64:0])", StringComparison.Ordinal) is true,
             "Expected canonical record construction in declared field order.");
         Assert(
-            recordCanonical?.Contains("G[discount](A[settle(V[@0])])", StringComparison.Ordinal) is true,
+            recordCanonical?.Contains("G[discount](A[settle(V[a])])", StringComparison.Ordinal) is true,
             "Expected canonical field access on a call result.");
 
         var recordRunResult = await client.CallToolAsync(

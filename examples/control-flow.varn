@@ -2,12 +2,12 @@ cap[console.write]
 budget[steps=200]
 
 fn main()->i64 ![console]
-    loop @0:i64 from 0 to 3 max 3
-        let @1:bool eq(@0,1)
-        if @1
+    loop step:i64 from 0 to 3 max 3
+        let isMiddle:bool eq(step,1)
+        if isMiddle
             io.print("middle")
         else
-            io.print(@0)
+            io.print(step)
         end
     end
     ret 0

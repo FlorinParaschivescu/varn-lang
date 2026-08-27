@@ -7,7 +7,6 @@ public enum TokenKind
     EndOfFile,
     NewLine,
     Identifier,
-    Slot,
     Integer,
     Float,
     String,

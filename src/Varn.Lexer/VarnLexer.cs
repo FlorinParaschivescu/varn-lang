@@ -79,6 +79,9 @@ public static class VarnLexer
 
             if (current == '@')
             {
+                // Numeric slots were replaced by named bindings. '@' is still recognized here so an
+                // older program reports the replacement instead of an unexpected-character error
+                // that says nothing about what to write instead.
                 var start = position++;
                 column++;
                 while (position < source.Length && char.IsAsciiDigit(source[position]))
@@ -87,15 +90,10 @@ public static class VarnLexer
                     column++;
                 }
 
-                if (position == start + 1)
-                {
-                    diagnostics.Add(new Diagnostic("VARN1001", "A slot must contain a numeric id after '@'.", span));
-                }
-                else
-                {
-                    tokens.Add(new Token(TokenKind.Slot, source[start..position], span));
-                }
-
+                diagnostics.Add(new Diagnostic(
+                    "VARN1004",
+                    $"Numeric slots were replaced by named bindings. Write a name instead of '{source[start..position]}'.",
+                    span));
                 continue;
             }
 

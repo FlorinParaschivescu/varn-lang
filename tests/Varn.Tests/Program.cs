@@ -13,16 +13,16 @@ public static class Program
         cap[console.write]
         budget[steps=100]
 
-        fn sum(@0:i64,@1:i64)->i64
-            let @2:i64 add(@0,@1)
-            ret @2
+        fn sum(a:i64,b:i64)->i64
+            let c:i64 add(a,b)
+            ret c
         end
 
         fn main()->i64 ![console]
-            let @0:i64 10
-            let @1:i64 20
-            let @2:i64 sum(@0,@1)
-            io.print(@2)
+            let a:i64 10
+            let b:i64 20
+            let c:i64 sum(a,b)
+            io.print(c)
             ret 0
         end
         """;
@@ -40,13 +40,15 @@ public static class Program
             ("bounded loops execute half-open ranges", BoundedLoopsExecuteHalfOpenRanges),
             ("checker verifies the static loop maximum", CheckerVerifiesLoopMaximum),
             ("loop iterator scope does not leak", LoopIteratorScopeDoesNotLeak),
-            ("mutable slots accumulate across bounded loops", MutableSlotsAccumulateAcrossLoops),
-            ("mutable slots persist through selected branches", MutableSlotsPersistThroughSelectedBranches),
-            ("checker rejects assignment to immutable slots", CheckerRejectsImmutableAssignment),
-            ("checker rejects assignment to unknown slots", CheckerRejectsUnknownAssignment),
+            ("mutable bindings accumulate across bounded loops", MutableBindingsAccumulateAcrossLoops),
+            ("mutable bindings persist through selected branches", MutableBindingsPersistThroughSelectedBranches),
+            ("checker rejects assignment to immutable bindings", CheckerRejectsImmutableAssignment),
+            ("checker rejects assignment to unknown bindings", CheckerRejectsUnknownAssignment),
             ("checker rejects assignment outside declaration scope", CheckerRejectsOutOfScopeAssignment),
             ("checker rejects assignment with a different type", CheckerRejectsDifferentAssignmentType),
-            ("checker rejects duplicate mutable slots", CheckerRejectsDuplicateMutableSlot),
+            ("checker rejects duplicate mutable bindings", CheckerRejectsDuplicateMutableBinding),
+            ("bindings are named and carry structured access", BindingsAreNamed),
+            ("numeric slots report their replacement", NumericSlotsReportTheirReplacement),
             ("optional type and value contracts are explicit", OptionalTypeAndValueContractsAreExplicit),
             ("optionals branch over present values", OptionalsBranchOverPresentValues),
             ("optionals branch over absent values", OptionalsBranchOverAbsentValues),
@@ -151,7 +153,7 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("var @0:i64 0\nset @0 1\nlet @2:i64? some(1)\nlet @3:i64? none[i64]\nlet @4:list[i64] list[i64](1)\nrec Pair(a:i64)\nlet @6:Pair rec[Pair](a=1)\nlet @7:i64 @6.a\nif true\nloop @1:i64 from 0 to 1 max 1\nend\neach @5:i64 in @4 max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var a:i64 0\nset a 1\nlet c:i64? some(1)\nlet d:i64? none[i64]\nlet e:list[i64] list[i64](1)\nrec Pair(a:i64)\nlet g:Pair rec[Pair](a=1)\nlet h:i64 g.a\nlet i:i64 pair().a\nif true\nloop b:i64 from 0 to 1 max 1\nend\neach f:i64 in e max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
@@ -208,8 +210,8 @@ public static class Program
         const string source = """
             budget[steps=100]
 
-            fn choose(@0:bool)->i64
-                if @0
+            fn choose(a:bool)->i64
+                if a
                     ret 11
                 else
                     ret 22
@@ -247,8 +249,8 @@ public static class Program
             cap[console.write]
             budget[steps=100]
             fn main()->i64 ![console]
-                loop @0:i64 from 0 to 3 max 3
-                    io.print(@0)
+                loop a:i64 from 0 to 3 max 3
+                    io.print(a)
                 end
                 ret 0
             end
@@ -271,7 +273,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                loop @0:i64 from 0 to 3 max 4
+                loop a:i64 from 0 to 3 max 4
                 end
                 ret 0
             end
@@ -285,25 +287,25 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                loop @0:i64 from 0 to 1 max 1
+                loop a:i64 from 0 to 1 max 1
                 end
-                ret @0
+                ret a
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
         return Task.CompletedTask;
     }
 
-    private static async Task MutableSlotsAccumulateAcrossLoops()
+    private static async Task MutableBindingsAccumulateAcrossLoops()
     {
         const string source = """
             budget[steps=100]
             fn main()->i64
-                var @0:i64 0
-                loop @1:i64 from 0 to 4 max 4
-                    set @0 add(@0,@1)
+                var a:i64 0
+                loop b:i64 from 0 to 4 max 4
+                    set a add(a,b)
                 end
-                ret @0
+                ret a
             end
             """;
         var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
@@ -312,21 +314,21 @@ public static class Program
         Assert(result.Steps == 16, $"Expected deterministic step count 16, got {result.Steps}.");
     }
 
-    private static async Task MutableSlotsPersistThroughSelectedBranches()
+    private static async Task MutableBindingsPersistThroughSelectedBranches()
     {
         const string source = """
             budget[steps=30]
             fn main()->i64
-                var @0:i64 1
+                var a:i64 1
                 if true
-                    set @0 9
+                    set a 9
                 end
-                ret @0
+                ret a
             end
             """;
         var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
         Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
-        Assert(result.ReturnValue?.AsI64() == 9, "Expected the selected branch to update the outer mutable slot.");
+        Assert(result.ReturnValue?.AsI64() == 9, "Expected the selected branch to update the outer mutable binding.");
     }
 
     private static Task CheckerRejectsImmutableAssignment()
@@ -336,16 +338,16 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let @0:i64 0
-                set @0 1
-                ret @0
+                let a:i64 0
+                set a 1
+                ret a
             end
             """,
             """
             budget[steps=30]
-            fn update(@0:i64)->i64
-                set @0 1
-                ret @0
+            fn update(a:i64)->i64
+                set a 1
+                ret a
             end
             fn main()->i64
                 ret update(0)
@@ -354,8 +356,8 @@ public static class Program
             """
             budget[steps=30]
             fn main()->i64
-                loop @0:i64 from 0 to 1 max 1
-                    set @0 1
+                loop a:i64 from 0 to 1 max 1
+                    set a 1
                 end
                 ret 0
             end
@@ -375,7 +377,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                set @0 1
+                set a 1
                 ret 0
             end
             """;
@@ -389,9 +391,9 @@ public static class Program
             budget[steps=30]
             fn main()->i64
                 if true
-                    var @0:i64 0
+                    var a:i64 0
                 end
-                set @0 1
+                set a 1
                 ret 0
             end
             """;
@@ -404,23 +406,23 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                var @0:i64 0
-                set @0 true
-                ret @0
+                var a:i64 0
+                set a true
+                ret a
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3025");
         return Task.CompletedTask;
     }
 
-    private static Task CheckerRejectsDuplicateMutableSlot()
+    private static Task CheckerRejectsDuplicateMutableBinding()
     {
         const string source = """
             budget[steps=20]
             fn main()->i64
-                var @0:i64 0
-                let @0:i64 1
-                ret @0
+                var a:i64 0
+                let a:i64 1
+                ret a
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3005");
@@ -481,9 +483,9 @@ public static class Program
         const string source = """
             budget[steps=50]
             fn main()->i64
-                let @0:i64? test.maybe(false)
-                if let @1:i64 @0
-                    ret @1
+                let a:i64? test.maybe(false)
+                if let b:i64 a
+                    ret b
                 else
                     ret 7
                 end
@@ -502,9 +504,9 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64 1
-                if let @1:i64 @0
-                    ret @1
+                let a:i64 1
+                if let b:i64 a
+                    ret b
                 end
                 ret 0
             end
@@ -518,8 +520,8 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? some(1)
-                if let @1:str @0
+                let a:i64? some(1)
+                if let b:str a
                     ret 1
                 end
                 ret 0
@@ -534,10 +536,10 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? some(1)
-                if let @1:i64 @0
+                let a:i64? some(1)
+                if let b:i64 a
                 end
-                ret @1
+                ret b
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
@@ -549,9 +551,9 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? some(1)
-                if let @1:i64 @0
-                    set @1 2
+                let a:i64? some(1)
+                if let b:i64 a
+                    set b 2
                 end
                 ret 0
             end
@@ -567,21 +569,21 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let @0:null? none[null]
+                let a:null? none[null]
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let @0:i64?? none[i64?]
+                let a:i64?? none[i64?]
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? some(null)
+                let a:i64? some(null)
                 ret 0
             end
             """
@@ -600,14 +602,14 @@ public static class Program
         const string someMismatch = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? some(true)
+                let a:i64? some(true)
                 ret 0
             end
             """;
         const string noneMismatch = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64? none[str]
+                let a:i64? none[str]
                 ret 0
             end
             """;
@@ -618,16 +620,16 @@ public static class Program
 
     private static string OptionalProgram(bool present) => $$"""
         budget[steps=100]
-        fn maybe(@0:bool)->i64?
-            if @0
+        fn maybe(a:bool)->i64?
+            if a
                 ret some(42)
             end
             ret none[i64]
         end
         fn main()->i64
-            let @0:i64? maybe({{present.ToString().ToLowerInvariant()}})
-            if let @1:i64 @0
-                ret @1
+            let a:i64? maybe({{present.ToString().ToLowerInvariant()}})
+            if let b:i64 a
+                ret b
             else
                 ret 7
             end
@@ -658,11 +660,11 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](10,20,30)
-                let @1:i64 list.length(@0)
-                let @2:i64? list.get(@0,1)
-                if let @3:i64 @2
-                    ret add(@1,@3)
+                let a:list[i64] list[i64](10,20,30)
+                let b:i64 list.length(a)
+                let c:i64? list.get(a,1)
+                if let d:i64 c
+                    ret add(b,d)
                 end
                 ret 0
             end
@@ -677,14 +679,14 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](10,20)
-                let @1:i64? list.get(@0,-1)
-                let @2:i64? list.get(@0,2)
-                if let @3:i64 @1
-                    ret @3
+                let a:list[i64] list[i64](10,20)
+                let b:i64? list.get(a,-1)
+                let c:i64? list.get(a,2)
+                if let d:i64 b
+                    ret d
                 end
-                if let @4:i64 @2
-                    ret @4
+                if let e:i64 c
+                    ret e
                 end
                 ret 7
             end
@@ -699,12 +701,12 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](1,2,3,4)
-                var @1:i64 0
-                each @2:i64 in @0 max 4
-                    set @1 add(@1,@2)
+                let a:list[i64] list[i64](1,2,3,4)
+                var b:i64 0
+                each c:i64 in a max 4
+                    set b add(b,c)
                 end
-                ret @1
+                ret b
             end
             """;
         var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
@@ -717,8 +719,8 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](1,2,3)
-                each @1:i64 in @0 max 2
+                let a:list[i64] list[i64](1,2,3)
+                each b:i64 in a max 2
                 end
                 ret 0
             end
@@ -734,7 +736,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:list[i64] list[i64](1,true)
+                let a:list[i64] list[i64](1,true)
                 ret 0
             end
             """;
@@ -747,8 +749,8 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:list[null] list[null]()
-                let @1:list[list[i64]] list[list[i64]]()
+                let a:list[null] list[null]()
+                let b:list[list[i64]] list[list[i64]]()
                 ret 0
             end
             """;
@@ -756,7 +758,7 @@ public static class Program
         Assert(diagnostics.Count(diagnostic => diagnostic.Code == "VARN3029") >= 2, FormatDiagnostics(diagnostics));
 
         var elements = Enumerable.Repeat("0", VarnValue.MaxListElements + 1);
-        var oversized = $"budget[steps=20]\nfn main()->i64\nlet @0:list[i64] list[i64]({string.Join(',', elements)})\nret 0\nend\n";
+        var oversized = $"budget[steps=20]\nfn main()->i64\nlet a:list[i64] list[i64]({string.Join(',', elements)})\nret 0\nend\n";
         AssertHasDiagnostic(CreateEngine().Check(oversized).Diagnostics, "VARN3031");
         return Task.CompletedTask;
     }
@@ -766,12 +768,12 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                each @0:i64 in 1 max 1
+                each a:i64 in 1 max 1
                 end
-                let @1:list[i64] list[i64](1)
-                each @2:bool in @1 max 1
+                let b:list[i64] list[i64](1)
+                each c:bool in b max 1
                 end
-                each @3:i64 in @1 max 1025
+                each d:i64 in b max 1025
                 end
                 ret 0
             end
@@ -788,10 +790,10 @@ public static class Program
         const string source = """
             budget[steps=30]
             fn main()->i64
-                let @0:list[i64] list[i64](1)
-                each @1:i64 in @0 max 1
+                let a:list[i64] list[i64](1)
+                each b:i64 in a max 1
                 end
-                ret @1
+                ret b
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3010");
@@ -803,9 +805,9 @@ public static class Program
         const string source = """
             budget[steps=30]
             fn main()->i64
-                let @0:list[i64] list[i64](1)
-                each @1:i64 in @0 max 1
-                    set @1 2
+                let a:list[i64] list[i64](1)
+                each b:i64 in a max 1
+                    set b 2
                 end
                 ret 0
             end
@@ -819,9 +821,9 @@ public static class Program
         const string source = """
             budget[steps=30]
             fn main()->i64
-                let @0:i64 list.length(1)
-                let @1:list[i64] list[i64](1)
-                let @2:i64? list.get(@1,true)
+                let a:i64 list.length(1)
+                let b:list[i64] list[i64](1)
+                let c:i64? list.get(b,true)
                 ret 0
             end
             """;
@@ -836,15 +838,15 @@ public static class Program
         const string empty = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64]()
-                ret list.length(@0)
+                let a:list[i64] list[i64]()
+                ret list.length(a)
             end
             """;
         const string populated = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[i64] list[i64](1,2,3)
-                ret list.length(@0)
+                let a:list[i64] list[i64](1,2,3)
+                ret list.length(a)
             end
             """;
         var emptyResult = await CreateEngine().RunAsync(empty).ConfigureAwait(false);
@@ -892,16 +894,16 @@ public static class Program
             budget[steps=100]
             rec Pair(a:i64,b:i64)
             fn main()->i64
-                let @0:Pair rec[Pair](a=1,b=2)
-                ret sub(@0.a,@0.b)
+                let a:Pair rec[Pair](a=1,b=2)
+                ret sub(a.a,a.b)
             end
             """;
         const string reordered = """
             budget[steps=100]
             rec Pair(a:i64,b:i64)
             fn main()->i64
-                let @0:Pair rec[Pair](b=2,a=1)
-                ret sub(@0.a,@0.b)
+                let a:Pair rec[Pair](b=2,a=1)
+                ret sub(a.a,a.b)
             end
             """;
         var declaredCheck = CreateEngine().Check(declared);
@@ -918,7 +920,7 @@ public static class Program
             canonical.Contains("W[Pair](a=K[i64:1];b=K[i64:2])", StringComparison.Ordinal),
             "Canonical output omitted normalized record construction.");
         Assert(
-            canonical.Contains("G[a](V[@0])", StringComparison.Ordinal),
+            canonical.Contains("G[a](V[a])", StringComparison.Ordinal),
             "Canonical output omitted field access.");
 
         var declaredResult = await CreateEngine().RunAsync(declared).ConfigureAwait(false);
@@ -959,10 +961,10 @@ public static class Program
             budget[steps=40]
             rec Order(items:list[i64],tier:str)
             fn main()->i64
-                let @0:Order rec[Order](items=list[i64](1),tier="g",extra=1)
-                let @1:Order rec[Order](items=list[i64](1))
-                let @2:Order rec[Order](items=list[i64](1),tier="g",tier="h")
-                let @3:Order rec[Order](items=1,tier="g")
+                let a:Order rec[Order](items=list[i64](1),tier="g",extra=1)
+                let b:Order rec[Order](items=list[i64](1))
+                let c:Order rec[Order](items=list[i64](1),tier="g",tier="h")
+                let d:Order rec[Order](items=1,tier="g")
                 ret 0
             end
             """;
@@ -1055,7 +1057,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:Missing rec[Missing](a=1)
+                let a:Missing rec[Missing](a=1)
                 ret 0
             end
             """;
@@ -1072,10 +1074,10 @@ public static class Program
             budget[steps=40]
             rec Order(items:list[i64],tier:str)
             fn main()->i64
-                let @0:i64 1
-                let @1:str @0.tier
-                let @2:Order rec[Order](items=list[i64](1),tier="g")
-                let @3:str @2.absent
+                let a:i64 1
+                let b:str a.tier
+                let c:Order rec[Order](items=list[i64](1),tier="g")
+                let d:str c.absent
                 ret 0
             end
             """;
@@ -1085,28 +1087,72 @@ public static class Program
         return Task.CompletedTask;
     }
 
+    private static async Task BindingsAreNamed()
+    {
+        // A name is decided once, at its binding, and read back by meaning. The parser tells a
+        // reference from a call by the parenthesis, and folds a dotted read into field access.
+        const string source = """
+            budget[steps=200]
+            rec Line(sku:str,qty:i64)
+            rec Cart(lines:list[Line])
+            fn weight(line:Line)->i64
+                ret line.qty
+            end
+            fn main(cart:Cart)->i64
+                var units:i64 0
+                each line:Line in cart.lines max 4
+                    set units add(units,weight(line))
+                end
+                ret units
+            end
+            """;
+        var result = await CreateEngine().RunAsync(
+            source,
+            new VarnRunOptions
+            {
+                Input = """{"lines":[{"sku":"A","qty":2},{"sku":"B","qty":3}]}"""
+            }).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 5, "Expected the named accumulator to reach 5.");
+    }
+
+    private static Task NumericSlotsReportTheirReplacement()
+    {
+        const string source = """
+            budget[steps=20]
+            fn main()->i64
+                let @0:i64 1
+                ret @0
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN1004");
+        return Task.CompletedTask;
+    }
+
     private static Task RecordsAreImmutable()
     {
         const string fieldAssignment = """
             budget[steps=40]
             rec Pair(a:i64,b:i64)
             fn main()->i64
-                let @0:Pair rec[Pair](a=1,b=2)
-                set @0.a 3
+                let a:Pair rec[Pair](a=1,b=2)
+                set a.a 3
                 ret 0
             end
             """;
-        const string slotAssignment = """
+        const string bindingAssignment = """
             budget[steps=40]
             rec Pair(a:i64,b:i64)
             fn main()->i64
-                let @0:Pair rec[Pair](a=1,b=2)
-                set @0 rec[Pair](a=3,b=4)
+                let a:Pair rec[Pair](a=1,b=2)
+                set a rec[Pair](a=3,b=4)
                 ret 0
             end
             """;
-        AssertHasDiagnostic(CreateEngine().Check(fieldAssignment).Diagnostics, "VARN2004");
-        AssertHasDiagnostic(CreateEngine().Check(slotAssignment).Diagnostics, "VARN3024");
+        // 'set a.a 3' is rejected because an assignment target is a binding name, and a
+        // binding name may not contain a dot. There is no field assignment form to reach.
+        AssertHasDiagnostic(CreateEngine().Check(fieldAssignment).Diagnostics, "VARN2007");
+        AssertHasDiagnostic(CreateEngine().Check(bindingAssignment).Diagnostics, "VARN3024");
         return Task.CompletedTask;
     }
 
@@ -1116,8 +1162,8 @@ public static class Program
             budget[steps=20]
             rec Pair(a:i64)
             fn main()->i64
-                let @0:Pair? none[Pair]
-                let @1:list[Pair] list[Pair]()
+                let a:Pair? none[Pair]
+                let b:list[Pair] list[Pair]()
                 ret 0
             end
             """;
@@ -1128,9 +1174,9 @@ public static class Program
             budget[steps=20]
             rec Pair(a:i64)
             fn main()->i64
-                let @0:Pair?? none[Pair?]
-                let @1:list[list[Pair]] list[list[Pair]]()
-                let @2:Missing? none[Missing]
+                let a:Pair?? none[Pair?]
+                let b:list[list[Pair]] list[list[Pair]]()
+                let c:Missing? none[Missing]
                 ret 0
             end
             """;
@@ -1146,16 +1192,16 @@ public static class Program
             budget[steps=100]
             rec One(a:i64)
             fn main()->i64
-                let @0:One rec[One](a=1)
-                ret @0.a
+                let a:One rec[One](a=1)
+                ret a.a
             end
             """;
         const string two = """
             budget[steps=100]
             rec Two(a:i64,b:i64)
             fn main()->i64
-                let @0:Two rec[Two](a=1,b=2)
-                ret @0.a
+                let a:Two rec[Two](a=1,b=2)
+                ret a.a
             end
             """;
         var oneResult = await CreateEngine().RunAsync(one).ConfigureAwait(false);
@@ -1170,8 +1216,8 @@ public static class Program
             budget[steps=40]
             rec Point(x:i64,y:i64)
             fn main()->i64
-                let @0:Point test.point(40)
-                ret add(@0.x,@0.y)
+                let a:Point test.point(40)
+                ret add(a.x,a.y)
             end
             """;
         var engine = CreateEngine();
@@ -1204,28 +1250,28 @@ public static class Program
         budget[steps=300]
         rec Order(items:list[i64],tier:str)
         rec Settlement(total:i64,discount:i64)
-        fn total(@0:list[i64])->i64
-            var @1:i64 0
-            each @2:i64 in @0 max 8
-                set @1 add(@1,@2)
+        fn total(a:list[i64])->i64
+            var b:i64 0
+            each c:i64 in a max 8
+                set b add(b,c)
             end
-            ret @1
+            ret b
         end
-        fn discount(@0:i64,@1:str)->i64
-            if eq(@1,"gold")
-                ret div(@0,10)
+        fn discount(a:i64,b:str)->i64
+            if eq(b,"gold")
+                ret div(a,10)
             end
             ret 0
         end
-        fn settle(@0:Order)->Settlement
-            let @1:i64 total(@0.items)
-            let @2:i64 discount(@1,@0.tier)
-            ret rec[Settlement](total=@1,discount=@2)
+        fn settle(a:Order)->Settlement
+            let b:i64 total(a.items)
+            let c:i64 discount(b,a.tier)
+            ret rec[Settlement](total=b,discount=c)
         end
         fn main()->i64
-            let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
-            let @1:Settlement settle(@0)
-            ret @1.discount
+            let a:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+            let b:Settlement settle(a)
+            ret b.discount
         end
         """;
 
@@ -1273,13 +1319,13 @@ public static class Program
             """
             budget[steps=20]
             rec Pair(a:i64)
-            fn main(@0:Pair,@1:Pair)->i64
+            fn main(a:Pair,b:Pair)->i64
                 ret 0
             end
             """,
             """
             budget[steps=20]
-            fn main(@0:i64)->i64
+            fn main(a:i64)->i64
                 ret 0
             end
             """,
@@ -1408,10 +1454,10 @@ public static class Program
         const string source = """
             budget[steps=100]
             rec Profile(name:str,age:i64?,active:bool,score:f64)
-            fn main(@0:Profile)->i64
-                if @0.active
-                    if let @1:i64 @0.age
-                        ret @1
+            fn main(a:Profile)->i64
+                if a.active
+                    if let b:i64 a.age
+                        ret b
                     end
                 end
                 ret -1
@@ -1452,23 +1498,23 @@ public static class Program
         budget[steps=300]
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
-        fn total(@0:list[i64])->i64
-            var @1:i64 0
-            each @2:i64 in @0 max 16
-                set @1 add(@1,@2)
+        fn total(a:list[i64])->i64
+            var b:i64 0
+            each c:i64 in a max 16
+                set b add(b,c)
             end
-            ret @1
+            ret b
         end
-        fn rate(@0:str)->i64
-            if eq(@0,"gold")
+        fn rate(a:str)->i64
+            if eq(a,"gold")
                 ret 10
             end
             ret 0
         end
-        fn main(@0:Order)->Settlement
-            let @1:i64 total(@0.items)
-            let @2:i64 rate(@0.customerTier)
-            ret rec[Settlement](total=@1,discount=div(mul(@1,@2),100))
+        fn main(a:Order)->Settlement
+            let b:i64 total(a.items)
+            let c:i64 rate(a.customerTier)
+            ret rec[Settlement](total=b,discount=div(mul(b,c),100))
         end
         """;
 
@@ -1496,16 +1542,16 @@ public static class Program
         const string shortCircuitable = """
             budget[steps=100]
             fn main()->i64
-                let @0:bool and(false,eq(1,1))
-                let @1:bool and(true,eq(1,1))
+                let a:bool and(false,eq(1,1))
+                let b:bool and(true,eq(1,1))
                 ret 0
             end
             """;
         const string baseline = """
             budget[steps=100]
             fn main()->i64
-                let @0:bool and(false,true)
-                let @1:bool and(true,true)
+                let a:bool and(false,true)
+                let b:bool and(true,true)
                 ret 0
             end
             """;
@@ -1548,21 +1594,21 @@ public static class Program
         const string source = """
             budget[steps=200]
             fn main()->i64
-                let @0:f64 div(0.0,0.0)
-                var @1:i64 0
-                if eq(@0,@0)
-                    set @1 add(@1,1)
+                let a:f64 div(0.0,0.0)
+                var b:i64 0
+                if eq(a,a)
+                    set b add(b,1)
                 end
-                if lt(@0,1.0)
-                    set @1 add(@1,2)
+                if lt(a,1.0)
+                    set b add(b,2)
                 end
-                if gte(@0,@0)
-                    set @1 add(@1,4)
+                if gte(a,a)
+                    set b add(b,4)
                 end
-                if ne(@0,@0)
-                    set @1 add(@1,8)
+                if ne(a,a)
+                    set b add(b,8)
                 end
-                ret @1
+                ret b
             end
             """;
         var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
@@ -1592,9 +1638,9 @@ public static class Program
         var floating = await CreateEngine().RunAsync("""
             budget[steps=50]
             fn main()->i64
-                let @0:f64 abs(-2.5)
-                let @1:f64 max(@0,1.0)
-                if eq(@1,2.5)
+                let a:f64 abs(-2.5)
+                let b:f64 max(a,1.0)
+                if eq(b,2.5)
                     ret 1
                 end
                 ret 0
@@ -1631,8 +1677,8 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[str] list[str]("gold","silver")
-                if list.contains(@0,"silver")
+                let a:list[str] list[str]("gold","silver")
+                if list.contains(a,"silver")
                     ret 1
                 end
                 ret 0
@@ -1645,8 +1691,8 @@ public static class Program
         const string longer = """
             budget[steps=100]
             fn main()->i64
-                let @0:list[str] list[str]("gold","silver","bronze")
-                if list.contains(@0,"silver")
+                let a:list[str] list[str]("gold","silver","bronze")
+                if list.contains(a,"silver")
                     ret 1
                 end
                 ret 0
@@ -1665,29 +1711,29 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let @0:bool and(true,1)
+                let a:bool and(true,1)
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let @0:bool gt(1,1.0)
+                let a:bool gt(1,1.0)
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let @0:i64 str.length(1)
+                let a:i64 str.length(1)
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let @0:list[i64] list[i64](1)
-                let @1:bool list.contains(@0,"1")
+                let a:list[i64] list[i64](1)
+                let b:bool list.contains(a,"1")
                 ret 0
             end
             """
@@ -1706,13 +1752,13 @@ public static class Program
         const string source = """
             budget[steps=300]
             rec Order(items:list[i64],customerTier:str)
-            fn main(@0:Order)->i64
-                var @1:i64 0
-                each @2:i64 in @0.items max 16
-                    set @1 add(@1,@2)
+            fn main(a:Order)->i64
+                var b:i64 0
+                each c:i64 in a.items max 16
+                    set b add(b,c)
                 end
-                if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
-                    ret div(mul(@1,10),100)
+                if and(gte(b,1000),or(eq(a.customerTier,"gold"),str.starts_with(a.customerTier,"vip")))
+                    ret div(mul(b,10),100)
                 end
                 ret 0
             end
@@ -1742,13 +1788,13 @@ public static class Program
             budget[steps=200]
             rec Window(max:i64,from:i64)
             fn main()->i64
-                let @0:Window rec[Window](max=9,from=3)
-                let @1:list[i64] list[i64](1,2,3)
-                var @2:i64 0
-                each @3:i64 in @1 max 3
-                    set @2 add(@2,@3)
+                let a:Window rec[Window](max=9,from=3)
+                let b:list[i64] list[i64](1,2,3)
+                var c:i64 0
+                each d:i64 in b max 3
+                    set c add(c,d)
                 end
-                ret max(@2,min(@0.max,@0.from))
+                ret max(c,min(a.max,a.from))
             end
             """;
         var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
@@ -1844,10 +1890,10 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                if ok @0:i64 num.div(10,0)
-                    ret @0
-                else err @1:str
-                    ret str.length(@1)
+                if ok a:i64 num.div(10,0)
+                    ret a
+                else err b:str
+                    ret str.length(b)
                 end
                 ret -1
             end
@@ -1859,8 +1905,8 @@ public static class Program
         const string withoutErrorBinding = """
             budget[steps=100]
             fn main()->i64
-                if ok @0:i64 num.div(10,2)
-                    ret @0
+                if ok a:i64 num.div(10,2)
+                    ret a
                 else
                     ret -1
                 end
@@ -1876,9 +1922,9 @@ public static class Program
         const string notAResult = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64 1
-                if ok @1:i64 @0
-                    ret @1
+                let a:i64 1
+                if ok b:i64 a
+                    ret b
                 end
                 ret 0
             end
@@ -1886,7 +1932,7 @@ public static class Program
         const string wrongBinding = """
             budget[steps=20]
             fn main()->i64
-                if ok @0:str num.div(4,2)
+                if ok a:str num.div(4,2)
                     ret 1
                 end
                 ret 0
@@ -1902,7 +1948,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:result[i64] err[i64](42)
+                let a:result[i64] err[i64](42)
                 ret 0
             end
             """;
@@ -1915,10 +1961,10 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:result[null] err[null]("x")
-                let @1:result[list[i64]] err[list[i64]]("x")
-                let @2:result[result[i64]] err[result[i64]]("x")
-                let @3:result[Missing] err[Missing]("x")
+                let a:result[null] err[null]("x")
+                let b:result[list[i64]] err[list[i64]]("x")
+                let c:result[result[i64]] err[result[i64]]("x")
+                let d:result[Missing] err[Missing]("x")
                 ret 0
             end
             """;
@@ -1934,16 +1980,16 @@ public static class Program
         const string escapes = """
             budget[steps=40]
             fn main()->i64
-                if ok @0:i64 num.div(4,2)
+                if ok a:i64 num.div(4,2)
                 end
-                ret @0
+                ret a
             end
             """;
         const string mutates = """
             budget[steps=40]
             fn main()->i64
-                if ok @0:i64 num.div(4,2)
-                    set @0 9
+                if ok a:i64 num.div(4,2)
+                    set a 9
                 end
                 ret 0
             end
@@ -1951,12 +1997,12 @@ public static class Program
         const string errorEscapes = """
             budget[steps=40]
             fn main()->i64
-                if ok @0:i64 num.div(4,2)
-                    ret @0
-                else err @1:str
+                if ok a:i64 num.div(4,2)
+                    ret a
+                else err b:str
                     ret 0
                 end
-                ret str.length(@1)
+                ret str.length(b)
             end
             """;
         AssertHasDiagnostic(CreateEngine().Check(escapes).Diagnostics, "VARN3010");
@@ -2008,8 +2054,8 @@ public static class Program
         var parsed = await CreateEngine().RunAsync("""
             budget[steps=100]
             fn main()->i64
-                if ok @0:i64 str.to_i64("41")
-                    ret add(@0,1)
+                if ok a:i64 str.to_i64("41")
+                    ret add(a,1)
                 end
                 ret -1
             end
@@ -2020,8 +2066,8 @@ public static class Program
         var widened = await CreateEngine().RunAsync("""
             budget[steps=100]
             fn main()->i64
-                let @0:f64 num.to_f64(3)
-                if gt(@0,2.5)
+                let a:f64 num.to_f64(3)
+                if gt(a,2.5)
                     ret 1
                 end
                 ret 0
@@ -2057,10 +2103,10 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                if ok @0:i64 num.div(4,2)
-                    ret @0
-                else err @1:str
-                    ret str.length(@1)
+                if ok a:i64 num.div(4,2)
+                    ret a
+                else err b:str
+                    ret str.length(b)
                 end
                 ret 0
             end
@@ -2072,16 +2118,16 @@ public static class Program
             canonical == CanonicalFormatter.Format(check.Program),
             "Canonical formatter changed output for the same tree.");
         Assert(
-            canonical.Contains("U(@0:i64,A[num.div(", StringComparison.Ordinal),
+            canonical.Contains("U(a:i64,A[num.div(", StringComparison.Ordinal),
             $"Canonical output omitted the result inspection: {canonical}");
         Assert(
-            canonical.Contains("E[@1]{", StringComparison.Ordinal),
-            "Canonical output omitted the bound failure slot.");
+            canonical.Contains("E[b]{", StringComparison.Ordinal),
+            "Canonical output omitted the bound failure binding.");
 
         var constructors = CreateEngine().Check("""
             budget[steps=20]
             fn main()->result[i64]
-                let @0:result[i64] err[i64]("x")
+                let a:result[i64] err[i64]("x")
                 ret ok(1)
             end
             """);
@@ -2101,16 +2147,16 @@ public static class Program
             budget[steps=200]
             rec Wrapper(message:str)
             fn main()->Wrapper
-                if ok @0:i64 str.to_i64("0")
+                if ok a:i64 str.to_i64("0")
                     ret probe()
                 end
                 ret rec[Wrapper](message="unreachable")
             end
             fn probe()->Wrapper
-                if ok @1:{{ValueTypeOf(expression)}} {{expression}}
+                if ok b:{{ValueTypeOf(expression)}} {{expression}}
                     ret rec[Wrapper](message="unexpected success")
-                else err @2:str
-                    ret rec[Wrapper](message=@2)
+                else err c:str
+                    ret rec[Wrapper](message=c)
                 end
                 ret rec[Wrapper](message="unreachable")
             end
@@ -2138,28 +2184,28 @@ public static class Program
         budget[steps=300]
         rec Order(items:list[i64],customerTier:str)
         rec Settlement(total:i64,discount:i64)
-        fn rate(@0:str)->result[i64]
-            if eq(@0,"gold")
+        fn rate(a:str)->result[i64]
+            if eq(a,"gold")
                 ret ok(10)
             end
-            if eq(@0,"basic")
+            if eq(a,"basic")
                 ret ok(0)
             end
-            ret err[i64](str.concat("unknown tier: ",@0))
+            ret err[i64](str.concat("unknown tier: ",a))
         end
-        fn main(@0:Order)->result[Settlement]
-            var @1:i64 0
-            each @2:i64 in @0.items max 16
-                set @1 add(@1,@2)
+        fn main(a:Order)->result[Settlement]
+            var b:i64 0
+            each c:i64 in a.items max 16
+                set b add(b,c)
             end
-            if ok @3:i64 rate(@0.customerTier)
-                if ok @4:i64 num.div(mul(@1,@3),100)
-                    ret ok(rec[Settlement](total=@1,discount=@4))
-                else err @5:str
-                    ret err[Settlement](@5)
+            if ok d:i64 rate(a.customerTier)
+                if ok e:i64 num.div(mul(b,d),100)
+                    ret ok(rec[Settlement](total=b,discount=e))
+                else err f:str
+                    ret err[Settlement](f)
                 end
-            else err @6:str
-                ret err[Settlement](@6)
+            else err g:str
+                ret err[Settlement](g)
             end
             ret err[Settlement]("unreachable")
         end
@@ -2172,11 +2218,11 @@ public static class Program
             rec Addr(city:str,zip:str)
             rec Person(name:str,home:Addr,alias:str?)
             rec Label(text:str)
-            fn main(@0:Person)->Label
-                if let @1:str @0.alias
-                    ret rec[Label](text=str.concat(@1,str.concat(" of ",@0.home.city)))
+            fn main(a:Person)->Label
+                if let b:str a.alias
+                    ret rec[Label](text=str.concat(b,str.concat(" of ",a.home.city)))
                 end
-                ret rec[Label](text=str.concat(@0.name,str.concat(" of ",@0.home.city)))
+                ret rec[Label](text=str.concat(a.name,str.concat(" of ",a.home.city)))
             end
             """;
         var named = await RunWithInputAsync(
@@ -2211,12 +2257,12 @@ public static class Program
             rec Line(sku:str,qty:i64,priceCents:i64)
             rec Cart(lines:list[Line])
             rec Total(cents:i64)
-            fn main(@0:Cart)->Total
-                var @1:i64 0
-                each @2:Line in @0.lines max 32
-                    set @1 add(@1,mul(@2.qty,@2.priceCents))
+            fn main(a:Cart)->Total
+                var b:i64 0
+                each c:Line in a.lines max 32
+                    set b add(b,mul(c.qty,c.priceCents))
                 end
-                ret rec[Total](cents=@1)
+                ret rec[Total](cents=b)
             end
             """;
         var result = await RunWithInputAsync(
@@ -2242,14 +2288,14 @@ public static class Program
             budget[steps=400]
             rec Nums(values:list[i64])
             rec Kept(values:list[i64])
-            fn main(@0:Nums)->Kept
-                var @1:list[i64] list[i64]()
-                each @2:i64 in @0.values max 32
-                    if gt(@2,10)
-                        set @1 list.append(@1,@2)
+            fn main(a:Nums)->Kept
+                var b:list[i64] list[i64]()
+                each c:i64 in a.values max 32
+                    if gt(c,10)
+                        set b list.append(b,c)
                     end
                 end
-                ret rec[Kept](values=@1)
+                ret rec[Kept](values=b)
             end
             """;
         var result = await RunWithInputAsync(source, """{"values":[5,15,25,3,40]}""").ConfigureAwait(false);
@@ -2261,7 +2307,7 @@ public static class Program
         const string mismatch = """
             budget[steps=40]
             fn main()->i64
-                let @0:list[i64] list.append(list[i64](1),"x")
+                let a:list[i64] list.append(list[i64](1),"x")
                 ret 0
             end
             """;
@@ -2274,9 +2320,9 @@ public static class Program
         var source = $$"""
             budget[steps=5000]
             fn main()->i64
-                let @0:list[i64] list[i64]({{elements}})
-                let @1:list[i64] list.append(@0,2)
-                ret list.length(@1)
+                let a:list[i64] list[i64]({{elements}})
+                let b:list[i64] list.append(a,2)
+                ret list.length(b)
             end
             """;
         var result = await CreateEngine().RunAsync(source, new VarnRunOptions { MaxSteps = 100_000 })
@@ -2290,11 +2336,11 @@ public static class Program
             budget[steps=200]
             rec Order(totalCents:i64,limitCents:i64)
             rec Receipt(totalCents:i64)
-            fn main(@0:Order)->result[Receipt]
-                if gt(@0.totalCents,@0.limitCents)
-                    ret err[Receipt](str.concat("over limit of ",str.from_i64(@0.limitCents)))
+            fn main(a:Order)->result[Receipt]
+                if gt(a.totalCents,a.limitCents)
+                    ret err[Receipt](str.concat("over limit of ",str.from_i64(a.limitCents)))
                 end
-                ret ok(rec[Receipt](totalCents=@0.totalCents))
+                ret ok(rec[Receipt](totalCents=a.totalCents))
             end
             """;
         var rejected = await RunWithInputAsync(source, """{"totalCents":15000,"limitCents":10000}""")
@@ -2333,7 +2379,7 @@ public static class Program
         const string loopDoesNotCount = """
             budget[steps=100]
             fn main()->i64
-                loop @0:i64 from 0 to 2 max 2
+                loop a:i64 from 0 to 2 max 2
                     ret 1
                 end
             end
@@ -2393,8 +2439,8 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let @0:i64 test.double(21)
-                ret @0
+                let a:i64 test.double(21)
+                ret a
             end
             """;
         var engine = CreateEngine();
@@ -2410,17 +2456,17 @@ public static class Program
             budget[steps=100]
             fn main()->i64
                 if true
-                    loop @0:i64 from 0 to 1 max 1
+                    loop a:i64 from 0 to 1 max 1
                     end
                 end
-                var @1:i64 0
-                set @1 add(@1,1)
-                let @2:i64? some(1)
-                let @3:i64? none[i64]
-                if let @4:i64 @2
-                    set @1 add(@1,@4)
+                var b:i64 0
+                set b add(b,1)
+                let c:i64? some(1)
+                let d:i64? none[i64]
+                if let e:i64 c
+                    set b add(b,e)
                 end
-                ret @1
+                ret b
             end
             """;
         var check = CreateEngine().Check(source);
@@ -2429,12 +2475,12 @@ public static class Program
         var second = CanonicalFormatter.Format(check.Program);
         Assert(first == second, "Canonical formatter changed output for the same tree.");
         Assert(first.Contains("I(", StringComparison.Ordinal), "Canonical output omitted the condition.");
-        Assert(first.Contains("O(@0:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
-        Assert(first.Contains("M(@1:i64,K[i64:0])", StringComparison.Ordinal), "Canonical output omitted the mutable declaration.");
-        Assert(first.Contains("S(@1,A[add(V[@1];K[i64:1])])", StringComparison.Ordinal), "Canonical output omitted the assignment.");
-        Assert(first.Contains("L(@2:i64?,P(K[i64:1]))", StringComparison.Ordinal), "Canonical output omitted the present optional.");
-        Assert(first.Contains("L(@3:i64?,N[i64])", StringComparison.Ordinal), "Canonical output omitted the absent optional.");
-        Assert(first.Contains("J(@4:i64,V[@2])", StringComparison.Ordinal), "Canonical output omitted the if-let binding.");
+        Assert(first.Contains("O(a:i64,0,1,1)", StringComparison.Ordinal), "Canonical output omitted the loop bounds.");
+        Assert(first.Contains("M(b:i64,K[i64:0])", StringComparison.Ordinal), "Canonical output omitted the mutable declaration.");
+        Assert(first.Contains("S(b,A[add(V[b];K[i64:1])])", StringComparison.Ordinal), "Canonical output omitted the assignment.");
+        Assert(first.Contains("L(c:i64?,P(K[i64:1]))", StringComparison.Ordinal), "Canonical output omitted the present optional.");
+        Assert(first.Contains("L(d:i64?,N[i64])", StringComparison.Ordinal), "Canonical output omitted the absent optional.");
+        Assert(first.Contains("J(e:i64,V[c])", StringComparison.Ordinal), "Canonical output omitted the if-let binding.");
         Assert(first.Contains(";T[];F[", StringComparison.Ordinal), "Canonical output omitted the empty record section.");
         return Task.CompletedTask;
     }

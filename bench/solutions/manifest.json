@@ -42,6 +42,146 @@
     "authorIntent": "crashed"
   },
   {
+    "task": "contact-routing",
+    "variant": "case-folded-kind",
+    "language": "python",
+    "note": "Case-folds the contact kind, so \"Email\" is accepted.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "case-folded-kind",
+    "language": "varn",
+    "note": "Case-folds the contact kind, so \"Email\" is accepted.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "prefers-backup",
+    "language": "python",
+    "note": "Checks the backup contact before the primary one.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "prefers-backup",
+    "language": "varn",
+    "note": "Checks the backup contact before the primary one.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "returns-contact",
+    "language": "python",
+    "note": "Returns the whole contact where the contract declares an address string.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "returns-contact",
+    "language": "varn",
+    "note": "Returns the whole contact where the contract declares an address string.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "unguarded-backup",
+    "language": "python",
+    "note": "Reads the possibly absent backup contact without checking presence.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "contact-routing",
+    "variant": "unguarded-backup",
+    "language": "varn",
+    "note": "Reads the possibly absent backup contact without checking presence.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "counts-lines",
+    "language": "python",
+    "note": "Counts lines instead of summing the quantities.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "counts-lines",
+    "language": "varn",
+    "note": "Counts lines instead of summing the quantities.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "dropped-list-field",
+    "language": "python",
+    "note": "Omits the declared free-sku list from the output.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "dropped-list-field",
+    "language": "varn",
+    "note": "Omits the declared free-sku list from the output.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "last-invalid",
+    "language": "python",
+    "note": "Records the last invalid sku instead of stopping at the first.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "last-invalid",
+    "language": "varn",
+    "note": "Records the last invalid sku instead of stopping at the first.",
+    "authorIntent": "silent_wrong"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "misnamed-field",
+    "language": "python",
+    "note": "Reads a nested field name the record does not declare.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "misnamed-field",
+    "language": "varn",
+    "note": "Reads a nested field name the record does not declare.",
+    "authorIntent": "crashed"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "reference",
+    "language": "python",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
+    "task": "invoice-lines",
+    "variant": "reference",
+    "language": "varn",
+    "note": "A correct solution.",
+    "authorIntent": "correct"
+  },
+  {
     "task": "order-discount",
     "variant": "case-insensitive",
     "language": "python",

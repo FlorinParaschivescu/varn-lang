@@ -3,23 +3,23 @@ budget[steps=200]
 rec Parcel(grams:i64,express:bool)
 rec Quote(cost:i64)
 
-fn band(@0:i64)->i64
-    if lte(@0,1000)
+fn band(grams:i64)->i64
+    if lte(grams,1000)
         ret 500
     end
-    if lte(@0,5000)
+    if lte(grams,5000)
         ret 900
     end
     ret 1500
 end
 
-fn main(@0:Parcel)->result[Quote]
-    if lt(@0.grams,0)
+fn main(parcel:Parcel)->result[Quote]
+    if lt(parcel.grams,0)
         ret err[Quote]("negative weight")
     end
-    let @1:i64 band(@0.grams)
-    if @0.express
-        ret ok(rec[Quote](cost=mul(@1,2)))
+    let cost:i64 band(parcel.grams)
+    if parcel.express
+        ret ok(rec[Quote](cost=mul(cost,2)))
     end
-    ret ok(rec[Quote](cost=@1))
+    ret ok(rec[Quote](cost=cost))
 end

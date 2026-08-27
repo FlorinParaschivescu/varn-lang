@@ -1,19 +1,19 @@
 budget[steps=200]
 
-fn sum(@0:list[i64])->i64
-    var @1:i64 0
-    each @2:i64 in @0 max 4
-        set @1 add(@1,@2)
+fn sum(values:list[i64])->i64
+    var total:i64 0
+    each value:i64 in values max 4
+        set total add(total,value)
     end
-    ret @1
+    ret total
 end
 
 fn main()->i64
-    let @0:list[i64] list[i64](1,2,3,4)
-    let @1:i64? list.get(@0,9)
-    if let @2:i64 @1
+    let values:list[i64] list[i64](1,2,3,4)
+    let beyondEnd:i64? list.get(values,9)
+    if let present:i64 beyondEnd
         ret -1
     else
-        ret sum(@0)
+        ret sum(values)
     end
 end

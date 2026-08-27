@@ -1,0 +1,15 @@
+budget[steps=300]
+
+rec Contact(kind:str,address:str)
+rec Customer(name:str,primary:Contact,backup:Contact?)
+rec Route(target:str,viaBackup:bool)
+
+fn main(customer:Customer)->result[Route]
+    if eq(customer.primary.kind,"email")
+        ret ok(rec[Route](target=customer.primary.address,viaBackup=false))
+    end
+    if eq(customer.backup.kind,"email")
+        ret ok(rec[Route](target=customer.backup.address,viaBackup=true))
+    end
+    ret err[Route](str.concat("no email contact for ",customer.name))
+end

@@ -61,8 +61,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 3,
     "RejectionReason": null,
-    "Characters": 442,
-    "ApproximateTokens": 141,
+    "Characters": 464,
+    "ApproximateTokens": 138,
     "Cases": [
       {
         "Name": "admin-prefix",
@@ -171,8 +171,8 @@
     "AuthorIntent": "correct",
     "Outcome": 0,
     "RejectionReason": null,
-    "Characters": 455,
-    "ApproximateTokens": 143,
+    "Characters": 477,
+    "ApproximateTokens": 140,
     "Cases": [
       {
         "Name": "admin-prefix",
@@ -281,9 +281,937 @@
     "AuthorIntent": "crashed",
     "Outcome": 1,
     "RejectionReason": "VARN3012 No overload \u0027gte(i64?,i64)\u0027 exists.; VARN3012 No overload \u0027and(null,bool)\u0027 exists.; VARN3019 An if condition must be bool, not null.",
-    "Characters": 414,
-    "ApproximateTokens": 134,
+    "Characters": 434,
+    "ApproximateTokens": 133,
     "Cases": [],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "case-folded-kind",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 523,
+    "ApproximateTokens": 172,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022ada@example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022grace@example.com\u0022, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022mira@example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022omar@work.example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "case-folded-kind",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 581,
+    "ApproximateTokens": 165,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022ada@example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022grace@example.com\u0022,\u0022viaBackup\u0022:true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022mira@example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022omar@work.example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "prefers-backup",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 507,
+    "ApproximateTokens": 164,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022ada@example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022grace@example.com\u0022, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Mira\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022omar@home.example.com\u0022, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "prefers-backup",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 553,
+    "ApproximateTokens": 155,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022ada@example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022grace@example.com\u0022,\u0022viaBackup\u0022:true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Mira\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022omar@home.example.com\u0022,\u0022viaBackup\u0022:true}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "reference",
+    "Language": "python",
+    "AuthorIntent": "correct",
+    "Outcome": 0,
+    "RejectionReason": null,
+    "Characters": 507,
+    "ApproximateTokens": 164,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022ada@example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022grace@example.com\u0022, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Mira\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022omar@work.example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "reference",
+    "Language": "varn",
+    "AuthorIntent": "correct",
+    "Outcome": 0,
+    "RejectionReason": null,
+    "Characters": 553,
+    "ApproximateTokens": 155,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022ada@example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022grace@example.com\u0022,\u0022viaBackup\u0022:true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022no email contact for Mira\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022target\u0022:\u0022omar@work.example.com\u0022,\u0022viaBackup\u0022:false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "returns-contact",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 485,
+    "ApproximateTokens": 154,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: {\u0022kind\u0022: \u0022email\u0022, \u0022address\u0022: \u0022ada@example.com\u0022}, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: {\u0022kind\u0022: \u0022email\u0022, \u0022address\u0022: \u0022grace@example.com\u0022}, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Lin\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Mira\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: {\u0022kind\u0022: \u0022email\u0022, \u0022address\u0022: \u0022omar@work.example.com\u0022}, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "returns-contact",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 1,
+    "RejectionReason": "VARN3042 Field \u0027Route.target\u0027 requires str, got Contact.; VARN3042 Field \u0027Route.target\u0027 requires str, got Contact.",
+    "Characters": 537,
+    "ApproximateTokens": 151,
+    "Cases": [],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "unguarded-backup",
+    "Language": "python",
+    "AuthorIntent": "crashed",
+    "Outcome": 2,
+    "RejectionReason": null,
+    "Characters": 484,
+    "ApproximateTokens": 159,
+    "Cases": [
+      {
+        "Name": "primary-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022ada@example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022ada@example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      },
+      {
+        "Name": "falls-back",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022grace@example.com\u0022,\n          \u0022viaBackup\u0022: true\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022grace@example.com\u0022, \u0022viaBackup\u0022: true}}",
+        "Failure": null
+      },
+      {
+        "Name": "absent-backup",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Lin\u0022\n      }",
+        "Actual": "",
+        "Failure": "TypeError: \u0027NoneType\u0027 object is not subscriptable"
+      },
+      {
+        "Name": "backup-not-email",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Ravi\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022no email contact for Ravi\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "kind-is-case-sensitive",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022no email contact for Mira\u0022\n      }",
+        "Actual": "",
+        "Failure": "TypeError: \u0027NoneType\u0027 object is not subscriptable"
+      },
+      {
+        "Name": "primary-wins-over-backup",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022target\u0022: \u0022omar@work.example.com\u0022,\n          \u0022viaBackup\u0022: false\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022target\u0022: \u0022omar@work.example.com\u0022, \u0022viaBackup\u0022: false}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "contact-routing",
+    "Variant": "unguarded-backup",
+    "Language": "varn",
+    "AuthorIntent": "crashed",
+    "Outcome": 1,
+    "RejectionReason": "VARN3043 Field access requires a record value, not Contact?.; VARN3012 No overload \u0027eq(null,str)\u0027 exists.; VARN3019 An if condition must be bool, not null.; VARN3043 Field access requires a record value, not Contact?.; VARN3042 Field \u0027Route.target\u0027 requires str, got null.",
+    "Characters": 509,
+    "ApproximateTokens": 150,
+    "Cases": [],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "counts-lines",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 524,
+    "ApproximateTokens": 160,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 2250, \u0022unitCount\u0022: 3, \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 500, \u0022unitCount\u0022: 1, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 0, \u0022unitCount\u0022: 0, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 600, \u0022unitCount\u0022: 3, \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "counts-lines",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 701,
+    "ApproximateTokens": 198,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:2250,\u0022unitCount\u0022:3,\u0022freeSkus\u0022:[\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:500,\u0022unitCount\u0022:1,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:0,\u0022unitCount\u0022:0,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: BETA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:600,\u0022unitCount\u0022:3,\u0022freeSkus\u0022:[\u0022ZEBRA\u0022,\u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "dropped-list-field",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 430,
+    "ApproximateTokens": 133,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 2250, \u0022unitCount\u0022: 6}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 500, \u0022unitCount\u0022: 4}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 0, \u0022unitCount\u0022: 0}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 600, \u0022unitCount\u0022: 4}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "dropped-list-field",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 1,
+    "RejectionReason": "VARN3039 Record \u0027Invoice\u0027 construction is missing field(s) freeSkus.",
+    "Characters": 567,
+    "ApproximateTokens": 161,
+    "Cases": [],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "last-invalid",
+    "Language": "python",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 620,
+    "ApproximateTokens": 178,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 2250, \u0022unitCount\u0022: 6, \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 500, \u0022unitCount\u0022: 4, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 0, \u0022unitCount\u0022: 0, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: GAMMA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 600, \u0022unitCount\u0022: 4, \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "last-invalid",
+    "Language": "varn",
+    "AuthorIntent": "silent_wrong",
+    "Outcome": 3,
+    "RejectionReason": null,
+    "Characters": 833,
+    "ApproximateTokens": 223,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:2250,\u0022unitCount\u0022:6,\u0022freeSkus\u0022:[\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:500,\u0022unitCount\u0022:4,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:0,\u0022unitCount\u0022:0,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: GAMMA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:600,\u0022unitCount\u0022:4,\u0022freeSkus\u0022:[\u0022ZEBRA\u0022,\u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "misnamed-field",
+    "Language": "python",
+    "AuthorIntent": "crashed",
+    "Outcome": 2,
+    "RejectionReason": null,
+    "Characters": 534,
+    "ApproximateTokens": 165,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "",
+        "Failure": "KeyError: \u0027unitPrice\u0027"
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "",
+        "Failure": "KeyError: \u0027unitPrice\u0027"
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 0, \u0022unitCount\u0022: 0, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "",
+        "Failure": "KeyError: \u0027unitPrice\u0027"
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": false,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "",
+        "Failure": "KeyError: \u0027unitPrice\u0027"
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "misnamed-field",
+    "Language": "varn",
+    "AuthorIntent": "crashed",
+    "Outcome": 1,
+    "RejectionReason": "VARN3044 Record \u0027Line\u0027 does not declare field \u0027unitPrice\u0027.; VARN3012 No overload \u0027mul(i64,null)\u0027 exists.; VARN3012 No overload \u0027add(i64,null)\u0027 exists.; VARN3025 Cannot assign null to mutable binding \u0027subtotal\u0027 of type i64.; VARN3044 Record \u0027Line\u0027 does not declare field \u0027unitPrice\u0027.; VARN3012 No overload \u0027eq(null,i64)\u0027 exists.; VARN3019 An if condition must be bool, not null.",
+    "Characters": 708,
+    "ApproximateTokens": 200,
+    "Cases": [],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "reference",
+    "Language": "python",
+    "AuthorIntent": "correct",
+    "Outcome": 0,
+    "RejectionReason": null,
+    "Characters": 534,
+    "ApproximateTokens": 165,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 2250, \u0022unitCount\u0022: 6, \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 500, \u0022unitCount\u0022: 4, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 0, \u0022unitCount\u0022: 0, \u0022freeSkus\u0022: []}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022: false, \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022: true, \u0022value\u0022: {\u0022subtotalCents\u0022: 600, \u0022unitCount\u0022: 4, \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
+    "MatchedIntent": true
+  },
+  {
+    "Task": "invoice-lines",
+    "Variant": "reference",
+    "Language": "varn",
+    "AuthorIntent": "correct",
+    "Outcome": 0,
+    "RejectionReason": null,
+    "Characters": 708,
+    "ApproximateTokens": 200,
+    "Cases": [
+      {
+        "Name": "mixed",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 2250,\n          \u0022unitCount\u0022: 6,\n          \u0022freeSkus\u0022: [\u0022SAMPLE\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:2250,\u0022unitCount\u0022:6,\u0022freeSkus\u0022:[\u0022SAMPLE\u0022]}}",
+        "Failure": null
+      },
+      {
+        "Name": "no-free-items",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 500,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:500,\u0022unitCount\u0022:4,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "empty-cart",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 0,\n          \u0022unitCount\u0022: 0,\n          \u0022freeSkus\u0022: []\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:0,\u0022unitCount\u0022:0,\u0022freeSkus\u0022:[]}}",
+        "Failure": null
+      },
+      {
+        "Name": "zero-quantity",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: WIDGET\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: WIDGET\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "first-invalid-wins",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: false,\n        \u0022error\u0022: \u0022invalid quantity for sku: BETA\u0022\n      }",
+        "Actual": "{\u0022ok\u0022:false,\u0022error\u0022:\u0022invalid quantity for sku: BETA\u0022}",
+        "Failure": null
+      },
+      {
+        "Name": "free-skus-keep-input-order",
+        "Matched": true,
+        "Expected": "{\n        \u0022ok\u0022: true,\n        \u0022value\u0022: {\n          \u0022subtotalCents\u0022: 600,\n          \u0022unitCount\u0022: 4,\n          \u0022freeSkus\u0022: [\u0022ZEBRA\u0022, \u0022MANGO\u0022]\n        }\n      }",
+        "Actual": "{\u0022ok\u0022:true,\u0022value\u0022:{\u0022subtotalCents\u0022:600,\u0022unitCount\u0022:4,\u0022freeSkus\u0022:[\u0022ZEBRA\u0022,\u0022MANGO\u0022]}}",
+        "Failure": null
+      }
+    ],
     "MatchedIntent": true
   },
   {
@@ -355,8 +1283,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 3,
     "RejectionReason": null,
-    "Characters": 787,
-    "ApproximateTokens": 257,
+    "Characters": 824,
+    "ApproximateTokens": 226,
     "Cases": [
       {
         "Name": "gold",
@@ -479,8 +1407,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 1,
     "RejectionReason": "VARN3039 Record \u0027Settlement\u0027 construction is missing field(s) discount.",
-    "Characters": 761,
-    "ApproximateTokens": 247,
+    "Characters": 792,
+    "ApproximateTokens": 217,
     "Cases": [],
     "MatchedIntent": true
   },
@@ -553,8 +1481,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 1,
     "RejectionReason": "VARN3012 No overload \u0027num.div(i64,f64)\u0027 exists.; VARN3047 An if ok source must be a result, not null.",
-    "Characters": 775,
-    "ApproximateTokens": 252,
+    "Characters": 812,
+    "ApproximateTokens": 221,
     "Cases": [],
     "MatchedIntent": true
   },
@@ -627,8 +1555,8 @@
     "AuthorIntent": "correct",
     "Outcome": 0,
     "RejectionReason": null,
-    "Characters": 773,
-    "ApproximateTokens": 252,
+    "Characters": 810,
+    "ApproximateTokens": 221,
     "Cases": [
       {
         "Name": "gold",
@@ -751,8 +1679,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 3,
     "RejectionReason": null,
-    "Characters": 773,
-    "ApproximateTokens": 252,
+    "Characters": 810,
+    "ApproximateTokens": 221,
     "Cases": [
       {
         "Name": "gold",
@@ -909,8 +1837,8 @@
     "AuthorIntent": "correct",
     "Outcome": 0,
     "RejectionReason": null,
-    "Characters": 480,
-    "ApproximateTokens": 165,
+    "Characters": 498,
+    "ApproximateTokens": 140,
     "Cases": [
       {
         "Name": "exact",
@@ -1005,8 +1933,8 @@
     "AuthorIntent": "crashed",
     "Outcome": 2,
     "RejectionReason": null,
-    "Characters": 297,
-    "ApproximateTokens": 109,
+    "Characters": 336,
+    "ApproximateTokens": 99,
     "Cases": [
       {
         "Name": "exact",
@@ -1115,8 +2043,8 @@
     "AuthorIntent": "silent_wrong",
     "Outcome": 3,
     "RejectionReason": null,
-    "Characters": 442,
-    "ApproximateTokens": 145,
+    "Characters": 473,
+    "ApproximateTokens": 138,
     "Cases": [
       {
         "Name": "light",
@@ -1239,8 +2167,8 @@
     "AuthorIntent": "correct",
     "Outcome": 0,
     "RejectionReason": null,
-    "Characters": 443,
-    "ApproximateTokens": 145,
+    "Characters": 474,
+    "ApproximateTokens": 138,
     "Cases": [
       {
         "Name": "light",

@@ -1,16 +1,16 @@
 budget[steps=100]
 
-fn maybe(@0:bool)->i64?
-    if @0
+fn maybe(present:bool)->i64?
+    if present
         ret some(42)
     end
     ret none[i64]
 end
 
 fn main()->i64
-    let @0:i64? maybe(true)
-    if let @1:i64 @0
-        ret @1
+    let answer:i64? maybe(true)
+    if let value:i64 answer
+        ret value
     else
         ret 0
     end

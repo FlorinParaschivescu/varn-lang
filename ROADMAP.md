@@ -16,28 +16,72 @@ Each stage is defined by what somebody can actually do, not by what is architect
 | --- | --- | --- | --- |
 | S1 | Verifiable core | Express and verify a structured transformation over host data. An agent generates, checks, repairs, inspects, and runs through MCP. | Done |
 | S2 | Expressive enough for real rules | Standard library plus `Result`: a person can write the rule they actually came to write, and expected failures are values. | Done, confirmed by a dogfooding pass |
-| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; model-generated half open |
+| S3 | Proven | A reproducible benchmark states where Varn beats Python-plus-JSON and where it loses. | Harness done; surface being frozen, then the model-generated half |
 | S4 | Embeddable | `dotnet tool install -g varn` and NuGet packages: somebody uses Varn without cloning this repository. | Built, unpublished |
 | S5 | Connected | Structured network policy and a trusted HTTP module, so rules can reach real data under explicit grants. Covers M2. | Not started |
-| S6 | Multi-tenant | Isolated, signed, versioned module processes. Bytecode and a VM only if measurement demands them. Covers M4 and M5. | Not started |
+| S6 | Multi-tenant | Isolated, signed, versioned module processes, only if a real deployment demands them. See **Not planned**. | Not started |
 
-M4, bytecode and the VM, is deliberately deferred. It is a performance and verification concern that matters at S6, and nothing before then needs it. Do not start it because it is interesting.
+Bytecode, a VM, and signed module isolation are cut rather than deferred; see **Not planned** for why. Do not start them because they are interesting.
 
 Distribution (S4) intentionally comes after expressiveness (S2) and proof (S3). Shipping an easy install before a person can write `and` converts curiosity into a bad first impression, and first impressions are spent once.
 
-## Current focus — measure the thesis, with a model
+## Current focus — make Varn cheaper to emit than Python
 
-The harness exists and the mechanism half is measured. What is missing is the half that needs a model: how *often* a real generator makes each kind of mistake, and how fast the repair loop closes.
+Varn only matters if a model that knows it produces correct programs for fewer tokens than the same model writing Python. Every item below is judged on **emitted tokens** and **generation error rate**, for a model that already knows the language.
+
+Familiarity is explicitly not a criterion. The cost of reading the specification before writing a program is a bootstrap expense that exists once per model generation and disappears once the language is in training data; designing the surface around today's priors optimizes for a condition that expires. What is being removed is what is *human*-shaped: numeric slots, prefix arithmetic, ceremony restating a type declared three lines above, and diagnostics written as prose.
+
+What stays untouched, because it is what makes the language worth training on at all: contracts on `main`, `result` as a value, capabilities, effects, step budgets, static field access, and a checker that refuses before execution.
+
+### 1. Fix and freeze the surface
+
+Everything downstream depends on the surface being final, so this comes first and nothing else starts until it is frozen.
+
+- [x] **Named bindings replace numeric slots.** A name is decided once, at its binding. A slot number is global state the generator must carry through the whole function, and training does not remove that tax. `@` is gone from the language and reports `VARN1004`, which names the replacement. The canonical projection prints the binding's name; normalizing names to ordinals so two programs that differ only in naming project identically is the canonical-equivalence item under M3.
+- [ ] **Infix arithmetic and comparison.** `a * b` is three tokens; `mul(a,b)` is six, paid on every generation forever. Calls stay for everything else: infix is worth it only where precedence is universal and unambiguous.
+- [ ] **Short-circuit `&&` and `||`,** removing the nested `if` ladders that exist only to avoid evaluating both operands.
+- [ ] **One form per concept.** No aliases, no second spelling. Choice costs deliberation and adds variance to generation.
+- [ ] **Inference where the information is already in scope** — `err(...)` from the declared return type, list and record element types from context.
+
+Exit criterion: the surface is frozen, and the benchmark's correct solutions cost fewer tokens in Varn than in Python. Named bindings took the ratio from 1.36x to 1.17x, with one task (`contact-routing`) already below parity.
+
+### 2. The oracle loop
+
+The checker is a correctness oracle, which means Varn can manufacture its own training corpus. Nothing decides whether arbitrary Python is correct; `varn check` plus a task's cases decides Varn exactly. This is the only mechanism by which "a model will know Varn" becomes true rather than hopeful, and it is not available to any language whose correctness is undecidable.
+
+- [ ] Generate (task, program, verdict) triples mechanically against the frozen surface.
+- [ ] Label every triple with the checker's verdict and the graded case outcomes.
+- [ ] Keep each rejected program paired with its diagnostic and its repair, so failures carry signal too.
+- [ ] Publish the dataset and the generator that produced it.
+
+Exit criterion: a reproducible corpus large enough to train on, produced without a human labelling a single example.
+
+### 3. Structured diagnostics, and repair as a patch
+
+- [ ] Diagnostics carry a machine-applicable payload — code, node, and the specific fault — rather than a sentence written for a person.
+- [ ] Structural edit operations keyed by stable node identifiers.
+- [ ] A repair costs an edit, not a regenerated program.
+
+Exit criterion: fixing a one-field defect costs an order of magnitude fewer tokens than regenerating the program that contains it.
+
+### 4. The language card
+
+- [ ] One document, sufficient on its own to write correct Varn, kept as small as the frozen surface allows.
+
+It is the in-context bootstrap until training lands, and the seed prompt for the oracle loop. It is not the headline measurement; the token cost of a program is.
+
+### 5. The benchmark's model-generated half
+
+The harness measures *mechanism* — which defects each language's checker can catch. What is missing is *frequency*: how often a real generator makes each mistake.
 
 - [x] Build a reproducible task set of small structured rules with known-correct answers.
 - [x] Classify every outcome as correct, rejected before execution, crashed, or silently wrong.
 - [x] Measure source size on one ruler across both languages.
-- [ ] Generate solutions with a real model in both languages under identical conditions.
+- [x] Grow the task set past flat scalars: `invoice-lines` takes a list of records and returns a list-valued field, `contact-routing` takes a nested record and an optional record.
+- [ ] Generate solutions with a real model in both languages under identical conditions. A fresh session given only the card, with no repository access, is a clean generator and needs no API key.
 - [ ] Measure **silent-wrong frequency** rather than silent-wrong mechanism.
 - [ ] Measure **tokens to verified-correct**, counting every repair cycle, not tokens to first output.
 - [ ] Report distributions across models and temperatures, not a single run.
-
-This needs model API access, which the harness deliberately does not assume. `bench/README.md` documents exactly where generated solutions plug in; classification, grading, and token counting already work unchanged.
 
 Exit criterion: a reproducible benchmark states where Varn wins and where it loses, with frequencies rather than examples.
 
@@ -67,7 +111,7 @@ Varn exposed nine callable names and could not express `and`, which blocked both
 - [x] Keep every addition total, pure, deterministic, capability-free, and exactly typed; defer failable operations to `Result`.
 - [x] Cover each operation with success and rejection tests, and specify the whole surface in `spec/types.md`.
 
-Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))`, with no helper function per condition.
+Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(gte(total,1000),or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip")))`, with no helper function per condition.
 
 Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
 
@@ -79,11 +123,11 @@ Varn was used to write ordinary programs — payroll with overtime, an over-limi
 - [x] **Every function needed an unreachable trailing `ret`.** `if ... ret ... else ... ret ... end` was rejected, so programs ended in lies like `ret err[Settlement]("unreachable")` — which this repository's own examples did. The checker now accepts a body whose every branch returns; a loop still does not count, because it may run zero times. The unreachable lines are gone from the examples.
 - [x] **A record could not contain a record, and a list could not hold one.** Line items, batches, addresses — the most common shapes in real data — were inexpressible. A record field, list element, and optional may now each hold a declared record, with nesting stopping at one level. Recursive records are rejected with `VARN3049`.
 - [x] **Lists were construct-only.** There was no way to build one, so `each` could only fold to a scalar and no transformation could produce a collection. Added `list.append`, which returns a new list.
-- [x] **Chained field access did not parse.** Found by a test written for the nesting work: the lexer folds dots into identifiers so `io.print` stays one token, which made `@0.home.city` arrive as a single `home.city` identifier. The parser now splits it, which is unambiguous because field names may not contain dots.
+- [x] **Chained field access did not parse.** Found by a test written for the nesting work: the lexer folds dots into identifiers so `io.print` stays one token, which made `order.home.city` arrive as a single `home.city` identifier. The parser now splits it, which is unambiguous because field names may not contain dots.
 
 The input binder, contract projection, canonical format, JSON results, and MCP guidance all follow the relaxed type rules. `contract.records` now carries every declared shape, so a host can resolve a nested or list element type name without parsing source.
 
-What this says about the benchmark: its four tasks were all flat scalar-in, scalar-out, because that was all Varn could express when they were written. The task set understates how far Varn was from real work, and should grow structured tasks before the model-generated half runs.
+What this said about the benchmark: its four tasks were all flat scalar-in, scalar-out, because that was all Varn could express when they were written, so the task set understated how far Varn was from real work. Two structured tasks have since been added on top of the relaxed rules — `invoice-lines` and `contact-routing` — and they are where Varn's margin is widest: four of their eight paired defects are refused before execution, against three of eight on the flat tasks.
 
 ## Completed — packaging
 
@@ -131,7 +175,7 @@ This slice separates the data from the program, so one checked Varn program is r
 - [x] Teach `varn_check` and `varn_run` the input contract, with exact rejection diagnostics.
 - [x] Add tests that run one unchanged program over several different inputs.
 
-Exit criterion met: `fn main(@0:Order)->Settlement` declares the contract, `varn_check` reports it as `contract.input`/`contract.result`, and `varn run --input` or the `varn_run` `input` argument supplies the data. `VARN6000`-`VARN6010` name every binding fault exactly, including list element paths such as `items[1]`. Binding precedes execution, so a rejected input consumes zero steps.
+Exit criterion met: `fn main(order:Order)->Settlement` declares the contract, `varn_check` reports it as `contract.input`/`contract.result`, and `varn run --input` or the `varn_run` `input` argument supplies the data. `VARN6000`-`VARN6010` name every binding fault exactly, including list element paths such as `items[1]`. Binding precedes execution, so a rejected input consumes zero steps.
 
 Protocol evidence: through the real stdio MCP process, one unchanged order-calculation program was checked once, its contract read from the response, then executed against three different inputs returning `235`, `0`, and `0` discounts; a mistyped element was rejected at `items[1]` with zero steps consumed and no capabilities granted.
 
@@ -147,7 +191,7 @@ This slice makes structured application data explicit without introducing ambien
 - [x] Add exhaustive missing, duplicate, extra, access, and resource-accounting tests.
 - [x] Exercise an AI-generated structured application task through the MCP adapter.
 
-Exit criterion met: Varn validates and transforms a closed structured value with deterministic field order and no dynamic property access. `rec Order(items:list[i64],tier:str)` declares the shape, `rec[Order](...)` must set every declared field exactly once, `@0.items` is the only field read, and `VARN3036`–`VARN3044` name each structural fault precisely.
+Exit criterion met: Varn validates and transforms a closed structured value with deterministic field order and no dynamic property access. `rec Order(items:list[i64],tier:str)` declares the shape, `rec[Order](...)` must set every declared field exactly once, `order.items` is the only field read, and `VARN3036`–`VARN3044` name each structural fault precisely.
 
 Protocol evidence: driven through the real stdio MCP process by `Varn.Adapter.Tests`, a record order-calculation program was rejected with `VARN3039` and `VARN3044`, repaired, inspected as `T[Order(items:list[i64];tier:str);Settlement(total:i64;discount:i64)]`, and executed to a deterministic `235` discount on a `2350` total with no capabilities granted. Source field order does not change the canonical projection, the result, or the step count. An autonomous Codex generate-check-repair-run session over records is still worth running before the next slice.
 
@@ -239,32 +283,16 @@ Exit criterion: the verifier can explain all requested effects, capabilities, an
 
 ## M3 — AI-native representation and evaluation
 
-- Version the canonical structural format.
-- Add parse/format round-trip and canonical-equivalence tests.
-- Build token-cost and generation-correctness benchmarks against Python, JavaScript, C#, Rust, and JSON IR.
-- Add structural edit operations keyed by stable node identifiers.
-- Publish reproducible eval datasets and results.
+Superseded by the current focus. The surviving items live there; these two remain because nothing above covers them.
 
-Exit criterion: Varn can demonstrate measurable AI-generation or verification advantages rather than relying on intuition.
+- [ ] Version the canonical structural format.
+- [ ] Add parse/format round-trip and canonical-equivalence tests.
 
-## M4 — Bytecode and virtual machine
+## Not planned
 
-- Specify bytecode, verifier rules, and versioning.
-- Compile the checked AST to bytecode.
-- Execute bytecode in a deterministic VM.
-- Add reproducible traces and differential tests against the interpreter.
+Cut deliberately, and not merely deferred: **bytecode and a virtual machine**, **signed module packages**, and **isolated module host processes**.
 
-Exit criterion: interpreter and VM agree on the complete conformance suite.
-
-## M5 — Secure module ecosystem
-
-- Version the module ABI and manifests.
-- Add signed module packages and dependency metadata.
-- Move untrusted integrations into an isolated module host.
-- Build narrow standard modules for console, files, time, randomness, and HTTP.
-- Add conformance tests and policy fixtures for module authors.
-
-Exit criterion: integrations can be distributed without expanding the trusted language core.
+None of them makes a generator cheaper or more accurate, which is the only thing that decides whether this language is worth using. Every hour spent there is an hour not spent on the five items above. Revisit only when measurement demands it — a profile showing the interpreter is the bottleneck on a real workload, or a deployment that genuinely cannot run trusted modules in-process. Not because they are interesting.
 
 ## AI-usage track
 

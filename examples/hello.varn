@@ -3,9 +3,9 @@ cap[console.write]
 budget[steps=100]
 
 fn main()->i64 ![console]
-    let @0:i64 10
-    let @1:i64 20
-    let @2:i64 add(@0,@1)
-    io.print(@2)
+    let left:i64 10
+    let right:i64 20
+    let total:i64 add(left,right)
+    io.print(total)
     ret 0
 end

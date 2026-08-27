@@ -137,7 +137,7 @@ public static class VarnParser
             {
                 do
                 {
-                    var parameterName = Match(TokenKind.Slot);
+                    var parameterName = MatchSimpleName("parameter");
                     Match(TokenKind.Colon);
                     var type = ParseType();
                     parameters.Add(new ParameterSyntax(parameterName.Text, type, parameterName.Span));
@@ -205,7 +205,7 @@ public static class VarnParser
         private LetStatementSyntax ParseLetStatement()
         {
             var start = Match(TokenKind.Let).Span;
-            var name = Match(TokenKind.Slot).Text;
+            var name = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var type = ParseType();
             var value = ParseExpression();
@@ -215,7 +215,7 @@ public static class VarnParser
         private VarStatementSyntax ParseVarStatement()
         {
             var start = Match(TokenKind.Var).Span;
-            var name = Match(TokenKind.Slot).Text;
+            var name = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var type = ParseType();
             var value = ParseExpression();
@@ -225,7 +225,7 @@ public static class VarnParser
         private SetStatementSyntax ParseSetStatement()
         {
             var start = Match(TokenKind.Set).Span;
-            var name = Match(TokenKind.Slot).Text;
+            var name = MatchSimpleName("binding").Text;
             var value = ParseExpression();
             return new SetStatementSyntax(name, value, start);
         }
@@ -269,7 +269,7 @@ public static class VarnParser
         private IfLetStatementSyntax ParseIfLetStatement(SourceSpan start)
         {
             Match(TokenKind.Let);
-            var binding = Match(TokenKind.Slot).Text;
+            var binding = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var bindingType = ParseType();
             var optional = ParseExpression();
@@ -292,7 +292,7 @@ public static class VarnParser
         private IfOkStatementSyntax ParseIfOkStatement(SourceSpan start)
         {
             Match(TokenKind.Ok);
-            var binding = Match(TokenKind.Slot).Text;
+            var binding = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var bindingType = ParseType();
             var result = ParseExpression();
@@ -307,7 +307,7 @@ public static class VarnParser
                 if (Current.Kind == TokenKind.Err)
                 {
                     MoveNext();
-                    errorBinding = Match(TokenKind.Slot).Text;
+                    errorBinding = MatchSimpleName("binding").Text;
                     Match(TokenKind.Colon);
                     _ = ParseType();
                 }
@@ -324,7 +324,7 @@ public static class VarnParser
         private LoopStatementSyntax ParseLoopStatement()
         {
             var start = Match(TokenKind.Loop).Span;
-            var iterator = Match(TokenKind.Slot).Text;
+            var iterator = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var iteratorType = ParseType();
             Match(TokenKind.From);
@@ -350,7 +350,7 @@ public static class VarnParser
         private EachStatementSyntax ParseEachStatement()
         {
             var start = Match(TokenKind.Each).Span;
-            var iterator = Match(TokenKind.Slot).Text;
+            var iterator = MatchSimpleName("binding").Text;
             Match(TokenKind.Colon);
             var iteratorType = ParseType();
             Match(TokenKind.In);
@@ -443,13 +443,10 @@ public static class VarnParser
                     return ParseErrExpression();
                 case TokenKind.Rec:
                     return ParseRecordExpression();
-                case TokenKind.Slot:
-                    MoveNext();
-                    return new ReferenceExpressionSyntax(token.Text, token.Span);
                 case TokenKind.Identifier:
-                    return ParseCall();
-                case var contextual when IsContextualKeyword(contextual) && Peek.Kind == TokenKind.LeftParen:
-                    return ParseCall();
+                    return Peek.Kind == TokenKind.LeftParen ? ParseCall() : ParseReference();
+                case var contextual when IsContextualKeyword(contextual):
+                    return Peek.Kind == TokenKind.LeftParen ? ParseCall() : ParseReference();
                 default:
                     Report("VARN2004", $"Expected an expression, but found '{token.Text}'.", token.Span);
                     MoveNext();
@@ -550,6 +547,28 @@ public static class VarnParser
 
             Match(TokenKind.RightParen);
             return new RecordExpressionSyntax(typeName.Text, fields, start);
+        }
+
+        private ExpressionSyntax ParseReference()
+        {
+            // The lexer folds dots into identifiers so module names like io.print stay one token,
+            // which makes a binding access such as order.items arrive as a single "order.items"
+            // identifier. The first segment names the binding and every later one is a field.
+            var token = MatchName();
+            var segments = token.Text.Split('.');
+            ExpressionSyntax expression = new ReferenceExpressionSyntax(segments[0], token.Span);
+            foreach (var segment in segments[1..])
+            {
+                if (segment.Length == 0)
+                {
+                    Report("VARN2007", "A field name must not be empty.", token.Span);
+                    continue;
+                }
+
+                expression = new FieldExpressionSyntax(expression, segment, token.Span);
+            }
+
+            return expression;
         }
 
         private CallExpressionSyntax ParseCall()

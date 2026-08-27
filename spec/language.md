@@ -11,7 +11,7 @@ A program contains zero or more capability declarations, exactly one positive st
 `main` takes at most one parameter and returns either `i64` or a declared record:
 
 ```varn
-fn main(@0:Order)->Settlement
+fn main(order:Order)->Settlement
 ```
 
 The parameter, when present, is the program's **input contract**: its type must be a declared record, and the host supplies its value separately from the source. The return type is the program's **result contract**. `VARN3004` reports too many parameters, a non-record input, or a return type that is neither `i64` nor a declared record.
@@ -27,25 +27,27 @@ budget[steps=100]
 
 Capability names, function names, effects, and types are case-sensitive and compared ordinally.
 
-## Functions and slots
+## Functions and bindings
 
 ```varn
-fn sum(@0:i64,@1:i64)->i64
-    let @2:i64 add(@0,@1)
-    ret @2
+fn sum(left:i64,right:i64)->i64
+    let total:i64 add(left,right)
+    ret total
 end
 ```
 
-Slots have numeric identities. `let` declares an immutable slot, while `var` declares a mutable slot and `set` explicitly replaces its value:
+A binding is named. `let` declares an immutable binding, while `var` declares a mutable one and `set` explicitly replaces its value:
 
 ```varn
-var @0:i64 0
-set @0 add(@0,1)
+var total:i64 0
+set total add(total,1)
 ```
 
-A slot must be declared before use and cannot be declared twice while an existing slot with the same numeric identity is in scope. Parameters, `let` slots, and loop iterators are immutable. An assignment target must be a visible mutable slot, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable slot; slots declared inside those blocks do not escape. Every path through a function body must reach `ret`, and its expression must exactly match the declared return type. A body that ends in `ret` always qualifies; so does one whose every branch returns, which is why no unreachable trailing `ret` is needed. A conditional counts only when both arms exist and both return. A `loop` or `each` never counts, because it may run zero times. `VARN3009` reports a body that can finish without returning.
+A binding must be declared before use and cannot be declared twice while an existing binding of the same name is in scope. Parameters, `let` bindings, and loop iterators are immutable. An assignment target must be a visible mutable binding, and its expression must exactly match the declared type. Assignments in nested conditions and loops update a visible outer mutable binding; bindings declared inside those blocks do not escape. Every path through a function body must reach `ret`, and its expression must exactly match the declared return type. A body that ends in `ret` always qualifies; so does one whose every branch returns, which is why no unreachable trailing `ret` is needed. A conditional counts only when both arms exist and both return. A `loop` or `each` never counts, because it may run zero times. `VARN3009` reports a body that can finish without returning.
 
-Mutation diagnostics preserve the existing slot rules: `VARN3005` reports duplicate declarations and `VARN3010` reports unknown or out-of-scope targets. `VARN3024` reports assignment to an immutable slot, and `VARN3025` reports an assignment type mismatch.
+Mutation diagnostics preserve the existing rules: `VARN3005` reports duplicate declarations and `VARN3010` reports unknown or out-of-scope targets. `VARN3024` reports assignment to an immutable binding, and `VARN3025` reports an assignment type mismatch.
+
+A binding name is an identifier without a dot (`VARN2007`), which is what keeps it distinct from a dotted module function name. A name followed by `(` is a call and a name on its own is a reference, so `total` reads a binding and `total()` calls a function. Numeric slots (`@0`) were the earlier form and are gone; the lexer still recognizes `@` only to report `VARN1004`, which names the replacement.
 
 Calls use a single canonical form: `name(arg0,arg1)`. The checker resolves program functions first and then module functions by exact parameter types. There are no implicit conversions.
 
@@ -54,17 +56,17 @@ Calls use a single canonical form: `name(arg0,arg1)`. The checker resolves progr
 An optional type adds `?` to one supported scalar type. Construction is explicit: `some(expression)` contains a value and `none[type]` represents a typed absence.
 
 ```varn
-let @0:i64? some(42)
-let @1:i64? none[i64]
+let answer:i64? some(42)
+let missing:i64? none[i64]
 ```
 
-Optional construction does not convert values implicitly. For example, `some(true)` has type `bool?` and cannot initialize an `i64?` slot. The supported element types are `i64`, `f64`, `bool`, and `str`; `null?`, `any?`, and nested optionals are rejected with `VARN3028`.
+Optional construction does not convert values implicitly. For example, `some(true)` has type `bool?` and cannot initialize an `i64?` binding. The supported element types are `i64`, `f64`, `bool`, and `str`; `null?`, `any?`, and nested optionals are rejected with `VARN3028`.
 
 `if let` is the only operation that extracts a contained value:
 
 ```varn
-if let @2:i64 @0
-    ret @2
+if let value:i64 answer
+    ret value
 else
     ret 0
 end
@@ -77,9 +79,9 @@ The source expression must be optional (`VARN3026`) and the binding type must ex
 Typed list construction states the homogeneous scalar element type explicitly, so empty lists do not require contextual inference:
 
 ```varn
-let @0:list[i64] list[i64](10,20,30)
-let @1:i64 list.length(@0)
-let @2:i64? list.get(@0,1)
+let values:list[i64] list[i64](10,20,30)
+let count:i64 list.length(values)
+let second:i64? list.get(values,1)
 ```
 
 Lists are immutable and contain at most 1,024 elements (`VARN3031`). Every literal element must exactly match the declared element type (`VARN3030`); supported types are `i64`, `f64`, `bool`, and `str` (`VARN3029`). `list.get` never traps for an invalid index: it returns a typed absence that must be handled with `if let`.
@@ -87,9 +89,9 @@ Lists are immutable and contain at most 1,024 elements (`VARN3031`). Every liter
 `each` traverses a list through an immutable element binding and requires a literal maximum:
 
 ```varn
-var @1:i64 0
-each @2:i64 in @0 max 3
-    set @1 add(@1,@2)
+var total:i64 0
+each value:i64 in values max 3
+    set total add(total,value)
 end
 ```
 
@@ -100,11 +102,11 @@ The source must be a list (`VARN3032`), the binding must match its element type 
 `result[T]` carries either a success value of type `T` or a `str` failure message. `T` is a scalar or a declared record; lists, optionals, and nested results are not result value types (`VARN3045`).
 
 ```varn
-fn rate(@0:str)->result[i64]
-    if eq(@0,"gold")
+fn rate(tier:str)->result[i64]
+    if eq(tier,"gold")
         ret ok(10)
     end
-    ret err[i64](str.concat("unknown tier: ",@0))
+    ret err[i64](str.concat("unknown tier: ",tier))
 end
 ```
 
@@ -113,10 +115,10 @@ end
 `if ok` is the only operation that extracts either side:
 
 ```varn
-if ok @1:i64 rate(@0.customerTier)
-    ret @1
-else err @2:str
-    ret str.length(@2)
+if ok percent:i64 rate(order.customerTier)
+    ret percent
+else err reason:str
+    ret str.length(reason)
 end
 ```
 
@@ -141,7 +143,7 @@ A record that can reach itself through its fields, directly or through another r
 Construction names the record and sets every declared field exactly once:
 
 ```varn
-let @0:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+let order:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
 ```
 
 The checker reports each fault exactly:
@@ -156,14 +158,14 @@ Field initializers may appear in any source order. The checker, interpreter, and
 A field is read with a postfix `.name` on a record-valued expression:
 
 ```varn
-let @1:list[i64] @0.items
-let @2:i64 settle(@0).discount
-let @3:str @0.home.city
+let items:list[i64] order.items
+let discount:i64 settle(order).discount
+let city:str order.home.city
 ```
 
 Access chains through nested records, and each step is one operation.
 
-Field access is static. The target must be a record (`VARN3043`) and the field must be declared (`VARN3044`); there is no dynamic property lookup, no field enumeration, and no reflection over a record. Records are immutable: there is no field assignment form, and a whole-record `set` still requires a mutable slot.
+Field access is static. The target must be a record (`VARN3043`) and the field must be declared (`VARN3044`); there is no dynamic property lookup, no field enumeration, and no reflection over a record. Records are immutable: there is no field assignment form, and a whole-record `set` still requires a mutable binding.
 
 Construction charges one step per field and field access charges one step, so the cost of a structured value is visible in the step budget.
 
@@ -172,13 +174,13 @@ Construction charges one step per field and field access charges one step, so th
 Build a condition with the boolean operations `and`, `or`, and `not` and the comparisons `eq`, `ne`, `lt`, `gt`, `lte`, and `gte`. They are ordinary calls, so both operands of `and` and `or` are always evaluated; use nested `if` when a branch must not run.
 
 ```varn
-if and(gte(@1,1000),or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip")))
+if and(gte(total,1000),or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip")))
 ```
 
-An `if` condition must have type `bool`. Branch-local slots do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.
+An `if` condition must have type `bool`. Branch-local bindings do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.
 
 ```varn
-if eq(@0,0)
+if eq(count,0)
     ret 1
 else
     ret 2
@@ -190,12 +192,12 @@ end
 Loops use an immutable `i64` iterator and literal half-open bounds. The iterator exists only inside the loop body.
 
 ```varn
-loop @0:i64 from 0 to 3 max 3
-    io.print(@0)
+loop step:i64 from 0 to 3 max 3
+    io.print(step)
 end
 ```
 
-This executes for `@0` values `0`, `1`, and `2`. The checker requires:
+This executes for `step` values `0`, `1`, and `2`. The checker requires:
 
 - an `i64` iterator;
 - `end >= start`;

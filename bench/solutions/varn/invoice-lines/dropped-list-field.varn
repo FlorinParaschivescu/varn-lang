@@ -1,0 +1,18 @@
+budget[steps=800]
+
+rec Line(sku:str,qty:i64,unitCents:i64)
+rec Cart(lines:list[Line])
+rec Invoice(subtotalCents:i64,unitCount:i64,freeSkus:list[str])
+
+fn main(cart:Cart)->result[Invoice]
+    var subtotal:i64 0
+    var units:i64 0
+    each line:Line in cart.lines max 64
+        if lt(line.qty,1)
+            ret err[Invoice](str.concat("invalid quantity for sku: ",line.sku))
+        end
+        set subtotal add(subtotal,mul(line.qty,line.unitCents))
+        set units add(units,line.qty)
+    end
+    ret ok(rec[Invoice](subtotalCents=subtotal,unitCount=units))
+end

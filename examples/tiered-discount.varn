@@ -4,14 +4,14 @@ budget[steps=300]
 rec Order(items:list[i64],customerTier:str)
 rec Settlement(total:i64,discount:i64,note:str)
 
-fn main(@0:Order)->Settlement
-    var @1:i64 0
-    each @2:i64 in @0.items max 16
-        set @1 add(@1,@2)
+fn main(order:Order)->Settlement
+    var total:i64 0
+    each item:i64 in order.items max 16
+        set total add(total,item)
     end
-    let @3:bool or(eq(@0.customerTier,"gold"),str.starts_with(@0.customerTier,"vip"))
-    if and(gte(@1,1000),@3)
-        ret rec[Settlement](total=@1,discount=div(mul(@1,10),100),note=str.concat("tier ",@0.customerTier))
+    let favoured:bool or(eq(order.customerTier,"gold"),str.starts_with(order.customerTier,"vip"))
+    if and(gte(total,1000),favoured)
+        ret rec[Settlement](total=total,discount=div(mul(total,10),100),note=str.concat("tier ",order.customerTier))
     end
-    ret rec[Settlement](total=@1,discount=0,note="no discount")
+    ret rec[Settlement](total=total,discount=0,note="no discount")
 end

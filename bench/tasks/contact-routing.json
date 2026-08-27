@@ -1,0 +1,96 @@
+{
+  "id": "contact-routing",
+  "title": "Route to an email contact",
+  "prompt": "A customer has a name, a primary contact, and an optional backup contact. Each contact has a kind and an address. Route to the primary contact's address when its kind is exactly \"email\". Otherwise route to the backup contact's address when a backup is present and its kind is exactly \"email\". If neither applies the result is an error \"no email contact for <name>\". Return the chosen address and whether the backup was used.",
+  "contract": {
+    "input": "Customer(name:str, primary:Contact(kind:str, address:str), backup:Contact?)",
+    "result": "result[Route(target:str, viaBackup:bool)]"
+  },
+  "cases": [
+    {
+      "name": "primary-email",
+      "input": {
+        "name": "Ada",
+        "primary": { "kind": "email", "address": "ada@example.com" },
+        "backup": null
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "target": "ada@example.com",
+          "viaBackup": false
+        }
+      },
+      "trap": "the target is the address inside the contact, not the contact itself"
+    },
+    {
+      "name": "falls-back",
+      "input": {
+        "name": "Grace",
+        "primary": { "kind": "sms", "address": "+15550100" },
+        "backup": { "kind": "email", "address": "grace@example.com" }
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "target": "grace@example.com",
+          "viaBackup": true
+        }
+      }
+    },
+    {
+      "name": "absent-backup",
+      "input": {
+        "name": "Lin",
+        "primary": { "kind": "sms", "address": "+15550111" },
+        "backup": null
+      },
+      "expect": {
+        "ok": false,
+        "error": "no email contact for Lin"
+      },
+      "trap": "an absent backup has no fields to read; it must be checked for presence before its kind"
+    },
+    {
+      "name": "backup-not-email",
+      "input": {
+        "name": "Ravi",
+        "primary": { "kind": "sms", "address": "+15550122" },
+        "backup": { "kind": "fax", "address": "+15550133" }
+      },
+      "expect": {
+        "ok": false,
+        "error": "no email contact for Ravi"
+      }
+    },
+    {
+      "name": "kind-is-case-sensitive",
+      "input": {
+        "name": "Mira",
+        "primary": { "kind": "Email", "address": "mira@example.com" },
+        "backup": null
+      },
+      "expect": {
+        "ok": false,
+        "error": "no email contact for Mira"
+      },
+      "trap": "kind matching is exact; \"Email\" is not \"email\""
+    },
+    {
+      "name": "primary-wins-over-backup",
+      "input": {
+        "name": "Omar",
+        "primary": { "kind": "email", "address": "omar@work.example.com" },
+        "backup": { "kind": "email", "address": "omar@home.example.com" }
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "target": "omar@work.example.com",
+          "viaBackup": false
+        }
+      },
+      "trap": "when both contacts are email the primary is chosen and the backup flag stays false"
+    }
+  ]
+}

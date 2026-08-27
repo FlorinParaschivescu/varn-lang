@@ -232,7 +232,7 @@ public sealed class VarnTypeChecker
             CheckType(parameter.Type, parameter.Span);
             if (!symbols.TryAdd(parameter.Name, new SlotSymbol(parameter.Type, IsMutable: false)))
             {
-                Report("VARN3005", $"Slot '{parameter.Name}' is declared more than once.", parameter.Span);
+                Report("VARN3005", $"Binding '{parameter.Name}' is declared more than once.", parameter.Span);
             }
         }
 
@@ -278,12 +278,12 @@ public sealed class VarnTypeChecker
                     var valueType = CheckExpression(let.Value, function, symbols);
                     if (!IsAssignable(let.Type, valueType))
                     {
-                        Report("VARN3006", $"Cannot assign {valueType} to slot '{let.Name}' of type {let.Type}.", let.Span);
+                        Report("VARN3006", $"Cannot assign {valueType} to binding '{let.Name}' of type {let.Type}.", let.Span);
                     }
 
                     if (!symbols.TryAdd(let.Name, new SlotSymbol(let.Type, IsMutable: false)))
                     {
-                        Report("VARN3005", $"Slot '{let.Name}' is declared more than once.", let.Span);
+                        Report("VARN3005", $"Binding '{let.Name}' is declared more than once.", let.Span);
                     }
 
                     break;
@@ -292,12 +292,12 @@ public sealed class VarnTypeChecker
                     var initialType = CheckExpression(variable.Value, function, symbols);
                     if (!IsAssignable(variable.Type, initialType))
                     {
-                        Report("VARN3006", $"Cannot assign {initialType} to slot '{variable.Name}' of type {variable.Type}.", variable.Span);
+                        Report("VARN3006", $"Cannot assign {initialType} to binding '{variable.Name}' of type {variable.Type}.", variable.Span);
                     }
 
                     if (!symbols.TryAdd(variable.Name, new SlotSymbol(variable.Type, IsMutable: true)))
                     {
-                        Report("VARN3005", $"Slot '{variable.Name}' is declared more than once.", variable.Span);
+                        Report("VARN3005", $"Binding '{variable.Name}' is declared more than once.", variable.Span);
                     }
 
                     break;
@@ -305,18 +305,18 @@ public sealed class VarnTypeChecker
                     var assignedType = CheckExpression(assignment.Value, function, symbols);
                     if (!symbols.TryGetValue(assignment.Name, out var target))
                     {
-                        Report("VARN3010", $"Slot '{assignment.Name}' is not defined.", assignment.Span);
+                        Report("VARN3010", $"Binding '{assignment.Name}' is not defined.", assignment.Span);
                         break;
                     }
 
                     if (!target.IsMutable)
                     {
-                        Report("VARN3024", $"Slot '{assignment.Name}' is immutable and cannot be assigned.", assignment.Span);
+                        Report("VARN3024", $"Binding '{assignment.Name}' is immutable and cannot be assigned.", assignment.Span);
                     }
 
                     if (!IsAssignable(target.Type, assignedType))
                     {
-                        Report("VARN3025", $"Cannot assign {assignedType} to mutable slot '{assignment.Name}' of type {target.Type}.", assignment.Span);
+                        Report("VARN3025", $"Cannot assign {assignedType} to mutable binding '{assignment.Name}' of type {target.Type}.", assignment.Span);
                     }
 
                     break;
@@ -390,7 +390,7 @@ public sealed class VarnTypeChecker
         var thenSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
         if (!thenSymbols.TryAdd(ifLet.Binding, new SlotSymbol(ifLet.BindingType, IsMutable: false)))
         {
-            Report("VARN3005", $"Slot '{ifLet.Binding}' is declared more than once.", ifLet.Span);
+            Report("VARN3005", $"Binding '{ifLet.Binding}' is declared more than once.", ifLet.Span);
         }
 
         CheckStatements(ifLet.ThenBody, function, thenSymbols);
@@ -422,7 +422,7 @@ public sealed class VarnTypeChecker
         var thenSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
         if (!thenSymbols.TryAdd(ifOk.Binding, new SlotSymbol(ifOk.BindingType, IsMutable: false)))
         {
-            Report("VARN3005", $"Slot '{ifOk.Binding}' is declared more than once.", ifOk.Span);
+            Report("VARN3005", $"Binding '{ifOk.Binding}' is declared more than once.", ifOk.Span);
         }
 
         CheckStatements(ifOk.ThenBody, function, thenSymbols);
@@ -431,7 +431,7 @@ public sealed class VarnTypeChecker
         if (ifOk.ErrorBinding is { } errorBinding &&
             !elseSymbols.TryAdd(errorBinding, new SlotSymbol(VarnType.String, IsMutable: false)))
         {
-            Report("VARN3005", $"Slot '{errorBinding}' is declared more than once.", ifOk.Span);
+            Report("VARN3005", $"Binding '{errorBinding}' is declared more than once.", ifOk.Span);
         }
 
         CheckStatements(ifOk.ElseBody, function, elseSymbols);
@@ -471,7 +471,7 @@ public sealed class VarnTypeChecker
         var loopSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
         if (!loopSymbols.TryAdd(loop.Iterator, new SlotSymbol(loop.IteratorType, IsMutable: false)))
         {
-            Report("VARN3005", $"Slot '{loop.Iterator}' is declared more than once.", loop.Span);
+            Report("VARN3005", $"Binding '{loop.Iterator}' is declared more than once.", loop.Span);
         }
 
         CheckStatements(loop.Body, function, loopSymbols);
@@ -507,7 +507,7 @@ public sealed class VarnTypeChecker
         var eachSymbols = new Dictionary<string, SlotSymbol>(symbols, StringComparer.Ordinal);
         if (!eachSymbols.TryAdd(each.Iterator, new SlotSymbol(each.IteratorType, IsMutable: false)))
         {
-            Report("VARN3005", $"Slot '{each.Iterator}' is declared more than once.", each.Span);
+            Report("VARN3005", $"Binding '{each.Iterator}' is declared more than once.", each.Span);
         }
 
         CheckStatements(each.Body, function, eachSymbols);
@@ -596,7 +596,7 @@ public sealed class VarnTypeChecker
                     return symbolType.Type;
                 }
 
-                Report("VARN3010", $"Slot '{reference.Name}' is not defined.", reference.Span);
+                Report("VARN3010", $"Binding '{reference.Name}' is not defined.", reference.Span);
                 return VarnType.Null;
             case CallExpressionSyntax call:
                 return CheckCall(call, containingFunction, symbols);
