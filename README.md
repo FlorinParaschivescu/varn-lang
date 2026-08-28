@@ -110,12 +110,12 @@ A `rec` declaration is closed and immutable. Construction must set every declare
 Arithmetic and comparison are infix with the usual precedence. Everything else is a call, and the standard library is small enough to hold in context:
 
 ```varn
-if and(total >= 1000,or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip")))
+if total >= 1000 && (order.customerTier == "gold" || str.starts_with(order.customerTier,"vip"))
     ret rec[Settlement](total=total,discount=total * 10 / 100,note=str.concat("tier ",order.customerTier))
 end
 ```
 
-`+ - * / %` for `i64`/`f64`, `== !=` for every scalar, `< > <= >=` for `i64`/`f64`/`str`, plus the calls `min max abs`, `and or not`, `str.length str.concat str.to_lower str.to_upper str.contains str.starts_with str.ends_with`, and `list.length list.get list.append list.contains`. All total, pure, and exactly typed, with no implicit conversions. Each operator desugars to the call it replaces, so it costs one step and projects identically; writing the call spelling instead is rejected, because one concept gets one form. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
+`+ - * / %` for `i64`/`f64`, `== !=` for every scalar, `< > <= >=` for `i64`/`f64`/`str`, short-circuiting `&& ||` and prefix `!` for `bool`, plus the calls `min max abs`, `str.length str.concat str.to_lower str.to_upper str.contains str.starts_with str.ends_with`, and `list.length list.get list.append list.contains`. All total, pure, and exactly typed, with no implicit conversions. Arithmetic, comparison, and `!` desugar to the call each replaces, so they cost one step and project identically. `&&` and `||` cannot, because the point is not evaluating the right operand. Writing the call spelling instead is rejected, because one concept gets one form. See [examples/tiered-discount.varn](examples/tiered-discount.varn) and [the type contract](spec/types.md).
 
 ## Expected failure is a value
 

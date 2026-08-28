@@ -60,9 +60,9 @@ let discount:i64 total * percent / 100
 let eligible:bool total >= 1000
 ```
 
-Precedence runs, tightest first: field access, then `*` `/` `%`, then `+` `-`, then `<` `>` `<=` `>=`, then `==` `!=`. All are left-associative and `( )` groups. Every operator desugars to the module call it always was, so the checker, the interpreter, the canonical projection, and the step budget see exactly what they saw before — an operator costs one step, like the call.
+Precedence runs, tightest first: field access, then unary `-` and `!`, then `*` `/` `%`, then `+` `-`, then `<` `>` `<=` `>=`, then `==` `!=`, then `&&`, then `||`. All the binary operators are left-associative and `( )` groups. Every operator desugars to the module call it always was, so the checker, the interpreter, the canonical projection, and the step budget see exactly what they saw before — an operator costs one step, like the call.
 
-One concept gets one form, so the call spelling is rejected: `add(a,b)` reports `VARN2008` and names `a + b`. A leading `-` negates a numeric literal (`-5`, `-1.5`) and nothing else; `VARN2009` reports `-value` and names `0 - value`, because a typed zero would have to guess between `i64` and `f64`.
+One concept gets one form, so every operator's call spelling is rejected: the prefix call form of `+`, `-`, `*`, `/`, `%`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, and `!` each report `VARN2008` naming the operator to write. A leading `-` negates a numeric literal (`-5`, `-1.5`) and nothing else; `VARN2009` reports `-value` and names `0 - value`, because a typed zero would have to guess between `i64` and `f64`.
 
 ## Typed optional values
 
@@ -184,10 +184,10 @@ Construction charges one step per field and field access charges one step, so th
 
 ## Conditions
 
-Comparison is infix: `==`, `!=`, `<`, `>`, `<=`, and `>=`. The boolean operations `and`, `or`, and `not` are ordinary calls, so both operands of `and` and `or` are always evaluated; use nested `if` when a branch must not run.
+Comparison is infix: `==`, `!=`, `<`, `>`, `<=`, and `>=`. So are the boolean operators `&&`, `||`, and prefix `!`. `&&` and `||` short-circuit, so the right operand runs only when the left does not already decide the answer, and a branch that must not run no longer needs a nested `if` to protect it.
 
 ```varn
-if and(total >= 1000,or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip")))
+if total >= 1000 && (order.customerTier == "gold" || str.starts_with(order.customerTier,"vip"))
 ```
 
 An `if` condition must have type `bool`. Branch-local bindings do not escape their branch. `else` is optional, and a `ret` in the selected branch immediately returns from the containing function.

@@ -43,15 +43,15 @@ builder.Services
             "data into the source and never regenerate the program per input. varn_check reports that contract as " +
             "contract.input; send matching JSON as the varn_run input argument and the same program runs unchanged " +
             "for every input. Input is validated before execution, so a rejected input consumes zero steps. " +
-            "Arithmetic and comparison are infix: + - * / % on i64/f64, == != on i64/f64/bool/str, " +
-            "< > <= >= on i64/f64/str. Precedence is the usual one and ( ) groups. Write total * 10 / 100, " +
+            "Arithmetic, comparison, and boolean logic are infix: + - * / % on i64/f64, == != on i64/f64/bool/str, " +
+            "< > <= >= on i64/f64/str, && || and prefix ! on bool. && and || short-circuit, so the right " +
+            "operand runs only when the left has not already decided. Precedence is the usual one and ( ) groups. Write total * 10 / 100, " +
             "not mul then div as calls: the call spelling of an operator is rejected with VARN2008. " +
             "A leading - negates a numeric literal only, so write 0 - value to negate a value. " +
-            "Every callable operation: min max abs (i64/f64), and or not (bool), str.length str.concat " +
+            "Every callable operation: min max abs (i64/f64), str.length str.concat " +
             "str.contains str.to_lower str.to_upper str.from_i64 str.from_f64 str.from_bool " +
             "str.starts_with str.ends_with, list.length list.get list.append list.contains, io.print. " +
-            "and/or are calls and both operands are always evaluated; write nested if when a branch must " +
-            "not run. Nothing else exists: do not invent a function. " +
+            "Nothing else exists: do not invent a function. " +
             "For a failure a caller must handle, use result[T]: build it with ok(value) or " +
             "err[T](\"message\"), and read it with if ok value:i64 <expr> ... else err reason:str ... end. " +
             "num.div num.mod num.to_i64 str.to_i64 str.to_f64 return result[T]; plain div and mod trap on a " +

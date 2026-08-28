@@ -319,7 +319,7 @@ public static class Program
             client.ServerInstructions?.Contains("use num.div when the divisor is data", StringComparison.Ordinal) is true,
             "Expected guidance on checked division.");
         Assert(
-            client.ServerInstructions?.Contains("Arithmetic and comparison are infix", StringComparison.Ordinal) is true &&
+            client.ServerInstructions?.Contains("&& and || short-circuit", StringComparison.Ordinal) is true &&
             client.ServerInstructions?.Contains("do not invent a function", StringComparison.Ordinal) is true,
             "Expected guidance on infix operators and a closed function set.");
 

@@ -107,7 +107,9 @@ public static class Program
             ("input binds optionals, booleans, and floats", InputBindsOptionalsBooleansAndFloats),
             ("input binding precedes execution", InputBindingPrecedesExecution),
             ("boolean operations combine conditions", BooleanOperationsCombineConditions),
-            ("boolean operations evaluate both operands", BooleanOperationsEvaluateBothOperands),
+            ("boolean operators short-circuit", BooleanOperatorsShortCircuit),
+            ("short-circuit operands must be bool", ShortCircuitOperandsMustBeBool),
+            ("short-circuit operators have their own projection", ShortCircuitHasOwnProjection),
             ("comparison set is complete over ordered types", ComparisonSetIsComplete),
             ("f64 comparison follows IEEE NaN semantics", F64ComparisonFollowsIeee),
             ("arithmetic covers mod, abs, min, and max", ArithmeticCoversModAbsMinMax),
@@ -1144,7 +1146,7 @@ public static class Program
                 let d:i64 17 % 5
                 let e:bool 1 + 1 == 2
                 let f:bool 2 * 3 > 5
-                if and(e,f)
+                if e && f
                     ret a + b + c + d
                 end
                 ret 0
@@ -1206,6 +1208,7 @@ public static class Program
 
     private static Task CallSpellingOfOperatorIsRejected()
     {
+        // Deliberately the old spelling: this is the migration path, not a program to keep.
         const string source = """
             budget[steps=40]
             fn main()->i64
@@ -1213,11 +1216,18 @@ public static class Program
                 if eq(a,3)
                     ret 0
                 end
-                ret 1
+                ret not(false)
             end
             """;
         var diagnostics = CreateEngine().Check(source).Diagnostics;
         AssertHasDiagnostic(diagnostics, "VARN2008");
+        Assert(
+            diagnostics.Count(static diagnostic =>
+                string.Equals(diagnostic.Code, "VARN2008", StringComparison.Ordinal)) == 3,
+            "Expected add, eq, and not to each be reported.");
+        Assert(
+            diagnostics.Any(static diagnostic => diagnostic.Message.Contains("!value", StringComparison.Ordinal)),
+            "Expected the unary form to be named for 'not'.");
         Assert(
             diagnostics.Any(static diagnostic => diagnostic.Message.Contains("a + b", StringComparison.Ordinal)),
             "Expected the diagnostic to name the operator form.");
@@ -1617,12 +1627,12 @@ public static class Program
     {
         (string Expression, long Expected)[] cases =
         [
-            ("and(true,true)", 1),
-            ("and(true,false)", 0),
-            ("or(false,true)", 1),
-            ("or(false,false)", 0),
-            ("not(false)", 1),
-            ("and(or(false,true),not(false))", 1)
+            ("true && true", 1),
+            ("true && false", 0),
+            ("false || true", 1),
+            ("false || false", 0),
+            ("!false", 1),
+            ("(false || true) && !false", 1)
         ];
 
         foreach (var (expression, expected) in cases)
@@ -1632,30 +1642,86 @@ public static class Program
         }
     }
 
-    private static async Task BooleanOperationsEvaluateBothOperands()
+    private static async Task BooleanOperatorsShortCircuit()
     {
-        const string shortCircuitable = """
-            budget[steps=100]
+        // The right operand is an effectful call, so whether it ran is observable in the output
+        // rather than only in the step count.
+        const string source = """
+            cap[console.write]
+            budget[steps=200]
+            fn noisy(value:bool)->bool ![console]
+                io.print("ran")
+                ret value
+            end
+            fn main()->i64 ![console]
+                let skipped:bool false && noisy(true)
+                let alsoSkipped:bool true || noisy(true)
+                let taken:bool true && noisy(true)
+                if skipped || !alsoSkipped
+                    ret 1
+                end
+                if taken
+                    ret 0
+                end
+                ret 2
+            end
+            """;
+        var output = new StringWriter();
+        var result = await CreateEngine().RunAsync(
+            source,
+            new VarnRunOptions
+            {
+                AllowedCapabilities = new HashSet<string>(StringComparer.Ordinal) { ConsoleModule.WriteCapability },
+                Output = output
+            }).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        Assert(result.ReturnValue?.AsI64() == 0, $"Expected 0, got {result.ReturnValue?.AsI64()}.");
+        var runs = output.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+        Assert(runs == 1, $"Expected only the taken operand to run, but it ran {runs} times.");
+    }
+
+    private static Task ShortCircuitOperandsMustBeBool()
+    {
+        const string source = """
+            budget[steps=20]
             fn main()->i64
-                let a:bool and(false,1 == 1)
-                let b:bool and(true,1 == 1)
+                let a:bool true && 1
                 ret 0
             end
             """;
-        const string baseline = """
-            budget[steps=100]
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3050");
+
+        // A single '&' is only ever a mistyped '&&', so it says so rather than reporting an
+        // unexpected character.
+        const string single = """
+            budget[steps=20]
             fn main()->i64
-                let a:bool and(false,true)
-                let b:bool and(true,true)
+                let a:bool true & false
                 ret 0
             end
             """;
-        var withCalls = await CreateEngine().RunAsync(shortCircuitable).ConfigureAwait(false);
-        var withLiterals = await CreateEngine().RunAsync(baseline).ConfigureAwait(false);
-        Assert(withCalls.IsSuccess && withLiterals.IsSuccess, FormatDiagnostics(withCalls.Diagnostics));
+        AssertHasDiagnostic(CreateEngine().Check(single).Diagnostics, "VARN1005");
+        return Task.CompletedTask;
+    }
+
+    private static Task ShortCircuitHasOwnProjection()
+    {
+        // Unlike arithmetic, these cannot project as the call they replaced: the call would
+        // evaluate both operands.
+        const string source = """
+            budget[steps=40]
+            fn main()->i64
+                let both:bool true && false
+                ret 0
+            end
+            """;
+        var check = CreateEngine().Check(source);
+        Assert(check.IsValid, FormatDiagnostics(check.Diagnostics));
+        var canonical = CanonicalFormatter.Format(check.Program);
         Assert(
-            withCalls.Steps - withLiterals.Steps == 2,
-            "Expected both operands to be evaluated regardless of the first, charging one step per nested call.");
+            canonical.Contains("X[&&](K[bool:true];K[bool:false])", StringComparison.Ordinal),
+            $"Expected a distinct short-circuit projection, got {canonical}.");
+        return Task.CompletedTask;
     }
 
     private static async Task ComparisonSetIsComplete()
@@ -1806,7 +1872,7 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let a:bool and(true,1)
+                let a:i64 abs(true)
                 ret 0
             end
             """,
@@ -1852,7 +1918,7 @@ public static class Program
                 each c:i64 in a.items max 16
                     set b b + c
                 end
-                if and(b >= 1000,or(a.customerTier == "gold",str.starts_with(a.customerTier,"vip")))
+                if b >= 1000 && (a.customerTier == "gold" || str.starts_with(a.customerTier,"vip"))
                     ret b * 10 / 100
                 end
                 ret 0

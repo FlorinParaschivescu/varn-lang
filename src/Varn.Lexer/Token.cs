@@ -57,7 +57,9 @@ public enum TokenKind
     Less,
     Greater,
     LessEquals,
-    GreaterEquals
+    GreaterEquals,
+    AmpersandAmpersand,
+    PipePipe
 }
 
 public sealed record Token(TokenKind Kind, string Text, SourceSpan Span);

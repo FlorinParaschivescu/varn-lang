@@ -281,9 +281,30 @@ public sealed class VarnEngine
                 RecordExpressionSyntax record => await EvaluateRecordAsync(record, frame, cancellationToken).ConfigureAwait(false),
                 FieldExpressionSyntax field => await EvaluateFieldAsync(field, frame, cancellationToken).ConfigureAwait(false),
                 ReferenceExpressionSyntax reference => frame[reference.Name].Value,
+                LogicalExpressionSyntax logical => await EvaluateLogicalAsync(logical, frame, cancellationToken).ConfigureAwait(false),
                 CallExpressionSyntax call => await InvokeCallAsync(call, frame, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown expression node {expression.GetType().Name}.")
             };
+        }
+
+        /// <summary>
+        /// Evaluates the right operand only when the left does not already decide the answer. This
+        /// makes the step count depend on the data, exactly as a loop over a host list already
+        /// does; the run stays deterministic because the same input charges the same steps.
+        /// </summary>
+        private async ValueTask<VarnValue> EvaluateLogicalAsync(
+            LogicalExpressionSyntax logical,
+            IReadOnlyDictionary<string, SlotCell> frame,
+            CancellationToken cancellationToken)
+        {
+            ConsumeStep(logical.Span);
+            var left = await EvaluateAsync(logical.Left, frame, cancellationToken).ConfigureAwait(false);
+            if (left.AsBool() != logical.IsAnd)
+            {
+                return left;
+            }
+
+            return await EvaluateAsync(logical.Right, frame, cancellationToken).ConfigureAwait(false);
         }
 
         private async ValueTask<VarnValue> EvaluateListAsync(

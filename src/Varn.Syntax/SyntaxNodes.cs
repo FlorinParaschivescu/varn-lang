@@ -139,6 +139,16 @@ public sealed record ReferenceExpressionSyntax(
     string Name,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
+/// <summary>
+/// A short-circuiting boolean operator. It cannot desugar to a call the way arithmetic does,
+/// because not evaluating the right operand is the whole point.
+/// </summary>
+public sealed record LogicalExpressionSyntax(
+    ExpressionSyntax Left,
+    bool IsAnd,
+    ExpressionSyntax Right,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+
 public sealed record CallExpressionSyntax(
     string FunctionName,
     IReadOnlyList<ExpressionSyntax> Arguments,

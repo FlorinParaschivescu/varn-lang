@@ -224,7 +224,9 @@ public static class VarnParser
                 ["lt"] = "<",
                 ["gt"] = ">",
                 ["lte"] = "<=",
-                ["gte"] = ">="
+                ["gte"] = ">=",
+                ["and"] = "&&",
+                ["or"] = "||"
             };
 
         private static bool IsContextualKeyword(TokenKind kind) =>
@@ -428,7 +430,23 @@ public static class VarnParser
         // Operators desugar to the same module calls the language always had, so the checker,
         // interpreter, canonical projection, and step accounting see exactly what they saw before.
         // Precedence runs equality < comparison < additive < multiplicative < field access.
-        private ExpressionSyntax ParseExpression() => ParseBinary(0);
+        private ExpressionSyntax ParseExpression() => ParseShortCircuit(isAnd: false);
+
+        // '||' and '&&' cannot desugar to calls the way arithmetic does, because not evaluating
+        // the right operand is the point. They bind looser than every comparison.
+        private ExpressionSyntax ParseShortCircuit(bool isAnd)
+        {
+            var separator = isAnd ? TokenKind.AmpersandAmpersand : TokenKind.PipePipe;
+            var left = isAnd ? ParseBinary(0) : ParseShortCircuit(isAnd: true);
+            while (Current.Kind == separator)
+            {
+                var operatorToken = TakeCurrent();
+                var right = isAnd ? ParseBinary(0) : ParseShortCircuit(isAnd: true);
+                left = new LogicalExpressionSyntax(left, isAnd, right, operatorToken.Span);
+            }
+
+            return left;
+        }
 
         private ExpressionSyntax ParseBinary(int level)
         {
@@ -450,6 +468,13 @@ public static class VarnParser
 
         private ExpressionSyntax ParseUnaryExpression()
         {
+            if (Current.Kind == TokenKind.Bang)
+            {
+                // 'not' takes one operand, so negation is safe to desugar to the call it replaces.
+                var bang = TakeCurrent();
+                return new CallExpressionSyntax("not", [ParseUnaryExpression()], bang.Span);
+            }
+
             if (Current.Kind != TokenKind.Minus)
             {
                 return ParsePostfixExpression();
@@ -676,7 +701,11 @@ public static class VarnParser
         private CallExpressionSyntax ParseCall()
         {
             var name = MatchName();
-            if (Operators.TryGetValue(name.Text, out var spelling))
+            if (string.Equals(name.Text, "not", StringComparison.Ordinal))
+            {
+                Report("VARN2008", "'not' is written as an operator. Use '!value' instead of 'not(value)'.", name.Span);
+            }
+            else if (Operators.TryGetValue(name.Text, out var spelling))
             {
                 Report(
                     "VARN2008",

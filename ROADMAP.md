@@ -39,8 +39,8 @@ Everything downstream depends on the surface being final, so this comes first an
 
 - [x] **Named bindings replace numeric slots.** A name is decided once, at its binding. A slot number is global state the generator must carry through the whole function, and training does not remove that tax. `@` is gone from the language and reports `VARN1004`, which names the replacement. The canonical projection prints the binding's name; normalizing names to ordinals so two programs that differ only in naming project identically is the canonical-equivalence item under M3.
 - [x] **Infix arithmetic and comparison.** `a * b` is three tokens; the call spelling it replaced was six, paid on every generation forever. Calls stay for everything else: infix is worth it only where precedence is universal and unambiguous. Every operator desugars to the call it replaces, so the checker, interpreter, canonical projection, and step budget were untouched; the call spelling now reports `VARN2008` and names the operator.
-- [ ] **Short-circuit `&&` and `||`,** removing the nested `if` ladders that exist only to avoid evaluating both operands.
-- [x] **One form per concept.** No aliases, no second spelling. Choice costs deliberation and adds variance to generation. Enforced so far for bindings (`VARN1004`) and operators (`VARN2008`).
+- [x] **Short-circuit `&&` and `||`,** removing the nested `if` ladders that exist only to avoid evaluating both operands. Prefix `!` came with them. Unlike arithmetic these cannot desugar to a call, so they are their own node through the checker, interpreter, and canonical projection. A step count now depends on the data, which `each` already made true; determinism is untouched.
+- [x] **One form per concept.** No aliases, no second spelling. Choice costs deliberation and adds variance to generation. Enforced for bindings (`VARN1004`) and for every operator with a call spelling (`VARN2008`).
 - [ ] **Inference where the information is already in scope** — `err(...)` from the declared return type, list and record element types from context.
 
 Exit criterion: the surface is frozen and every remaining item can be built against it without a rewrite.
@@ -107,7 +107,7 @@ Varn exposed nine callable names and could not express `and`, which blocked real
 - [x] Keep every addition total, pure, deterministic, capability-free, and exactly typed; defer failable operations to `Result`.
 - [x] Cover each operation with success and rejection tests, and specify the whole surface in `spec/types.md`.
 
-Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `and(total >= 1000,or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip")))`, with no helper function per condition.
+Exit criterion met: `examples/tiered-discount.varn` expresses a tier-and-threshold rule as one condition, `total >= 1000 && (order.customerTier == "gold" || str.starts_with(order.customerTier,"vip"))`, with no helper function per condition.
 
 Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They were reserved everywhere, so `max(3,9)` failed to parse and no record field could be called `max`. They now carry meaning only inside a `loop` or `each` header.
 

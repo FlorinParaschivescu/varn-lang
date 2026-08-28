@@ -34,8 +34,8 @@ The core module provides every operation below. Each is total, pure, determinist
 | Arithmetic | `%` | `i64` | `i64` |
 | Arithmetic | `min`, `max` | `i64`, `f64` | same as operands |
 | Arithmetic | `abs` | `i64`, `f64` | same as operand |
-| Boolean | `and`, `or` | `bool` | `bool` |
-| Boolean | `not` | `bool` (one operand) | `bool` |
+| Boolean | `&&`, `\|\|` | `bool` | `bool` |
+| Boolean | `!` | `bool` (one operand) | `bool` |
 | Equality | `==`, `!=` | `i64`, `f64`, `bool`, `str` | `bool` |
 | Ordering | `<`, `>`, `<=`, `>=` | `i64`, `f64`, `str` | `bool` |
 | String | `str.length` | `str` | `i64` |
@@ -52,7 +52,9 @@ Arithmetic and comparison are infix and desugar to those same operations, so an 
 
 A leading `-` negates a **numeric literal** and nothing else, so `-5` is a literal and `0 - value` is how a value is negated (`VARN2009`). This avoids a typed zero that would have to guess between `i64` and `f64`.
 
-`and` and `or` are ordinary calls, so **both operands are always evaluated**. There is no short-circuiting: a call charges the same steps regardless of operand values, which keeps step accounting a function of program shape rather than data. Write `if` when a branch must not be evaluated.
+`&&` and `||` **short-circuit**: the right operand is evaluated only when the left does not already decide the answer. `!` desugars to the `not` call it replaces, but `&&` and `||` cannot, because a call would evaluate both operands; they are their own node and their own canonical projection.
+
+This makes a step count depend on the data. That is not new — `each` over a host list already charges per element — and it does not weaken determinism: the same input charges the same steps, and the budget is still a ceiling the run cannot exceed. What it does mean is that a step count is not readable from program shape alone. Both operands of `&&` and `||` must be `bool` (`VARN3050`), and a single `&` or `|` reports `VARN1005`, since there is no bitwise arithmetic to confuse it with.
 
 String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err[T](str.concat("over limit of ",str.from_i64(order.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
 

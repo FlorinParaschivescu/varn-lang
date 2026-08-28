@@ -598,6 +598,19 @@ public sealed class VarnTypeChecker
 
                 Report("VARN3010", $"Binding '{reference.Name}' is not defined.", reference.Span);
                 return VarnType.Null;
+            case LogicalExpressionSyntax logical:
+                var leftType = CheckExpression(logical.Left, containingFunction, symbols);
+                var rightType = CheckExpression(logical.Right, containingFunction, symbols);
+                var spelling = logical.IsAnd ? "&&" : "||";
+                if (leftType != VarnType.Bool || rightType != VarnType.Bool)
+                {
+                    Report(
+                        "VARN3050",
+                        $"Both operands of '{spelling}' must be bool, not {leftType} and {rightType}.",
+                        logical.Span);
+                }
+
+                return VarnType.Bool;
             case CallExpressionSyntax call:
                 return CheckCall(call, containingFunction, symbols);
             default:

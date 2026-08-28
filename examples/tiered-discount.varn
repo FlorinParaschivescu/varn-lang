@@ -9,8 +9,8 @@ fn main(order:Order)->Settlement
     each item:i64 in order.items max 16
         set total total + item
     end
-    let favoured:bool or(order.customerTier == "gold",str.starts_with(order.customerTier,"vip"))
-    if and(total >= 1000,favoured)
+    let favoured:bool order.customerTier == "gold" || str.starts_with(order.customerTier,"vip")
+    if total >= 1000 && favoured
         ret rec[Settlement](total=total,discount=total * 10 / 100,note=str.concat("tier ",order.customerTier))
     end
     ret rec[Settlement](total=total,discount=0,note="no discount")

@@ -145,6 +145,13 @@ public static class CanonicalFormatter
                 case LiteralExpressionSyntax literal:
                     _builder.Append("K[").Append(literal.Type.Name).Append(':').Append(FormatLiteral(literal)).Append(']');
                     break;
+                case LogicalExpressionSyntax logical:
+                    _builder.Append("X[").Append(logical.IsAnd ? "&&" : "||").Append("](");
+                    AppendExpression(logical.Left);
+                    _builder.Append(';');
+                    AppendExpression(logical.Right);
+                    _builder.Append(')');
+                    break;
                 case SomeExpressionSyntax some:
                     _builder.Append("P(");
                     AppendExpression(some.Value);

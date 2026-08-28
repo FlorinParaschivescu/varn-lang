@@ -202,6 +202,8 @@ public static class VarnLexer
                 ('!', '=') => TokenKind.BangEquals,
                 ('<', '=') => TokenKind.LessEquals,
                 ('>', '=') => TokenKind.GreaterEquals,
+                ('&', '&') => TokenKind.AmpersandAmpersand,
+                ('|', '|') => TokenKind.PipePipe,
                 _ => (TokenKind?)null
             };
 
@@ -238,6 +240,16 @@ public static class VarnLexer
             if (punctuation is { } punctuationKind)
             {
                 tokens.Add(new Token(punctuationKind, current.ToString(), span));
+            }
+            else if (current is '&' or '|')
+            {
+                // A single '&' or '|' is only ever a mistyped short-circuit operator; there is no
+                // bitwise arithmetic to confuse it with.
+                var doubled = new string(current, 2);
+                diagnostics.Add(new Diagnostic(
+                    "VARN1005",
+                    $"'{current}' is not an operator. Write '{doubled}' for a short-circuit {(current == '&' ? "and" : "or")}.",
+                    span));
             }
             else
             {
