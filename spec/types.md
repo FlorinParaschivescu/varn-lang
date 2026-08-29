@@ -10,13 +10,13 @@ The bootstrap checker recognizes five program-visible types:
 
 `any` exists only in module signatures, currently for functions such as `io.print`. Programs cannot declare `any` bindings or parameters.
 
-Appending `?` creates an optional over a scalar or a declared record. `some(value)` produces a present optional and `none[type]` produces an absent optional with the same exact type. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
+Appending `?` creates an optional over a scalar or a declared record. `some(value)` produces a present optional and `none` produces an absent one, taking its element type from the surrounding declaration. `null?`, `any?`, and nested optionals are intentionally unsupported. Optional values can be extracted only through an `if let` binding.
 
-`result[T]` carries either a success value of type `T` or a `str` failure message, where `T` is a scalar or a declared record. `ok(value)` and `err[T](message)` construct it, and `if ok` is the only way to read either side. Optionals represent absence; results represent failure with a reason.
+`result[T]` carries either a success value of type `T` or a `str` failure message, where `T` is a scalar or a declared record. `ok(value)` and `err(message)` construct it, and `if ok` is the only way to read either side. Optionals represent absence; results represent failure with a reason.
 
-`list[T]` is an immutable homogeneous list whose element type is a scalar or a declared record. Construction is explicit as `list[T](value0,value1)`, including `list[T]()` for an empty list. Lists contain at most 1,024 elements. Nesting stops at one level: a list of lists, an optional list, and a list of optionals are all unsupported.
+`list[T]` is an immutable homogeneous list whose element type is a scalar or a declared record. Construction is `list(value0,value1)`, or `list()` for an empty one, with the element type taken from the surrounding declaration or the first element. Lists contain at most 1,024 elements. Nesting stops at one level: a list of lists, an optional list, and a list of optionals are all unsupported.
 
-`list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none[T]`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
+`list.length(values)` returns `i64`. `list.get(values,index)` returns `T?`; negative and out-of-range indexes produce `none`. `each` traverses elements only when the runtime list length is at most its explicit `max` ceiling.
 
 A `rec` declaration introduces a closed named record type. Its fields are ordered by declaration, unique, and typed as a contained type: a scalar or a declared record, or an optional or list of one. Nesting stops there, so a list of lists, an optional optional, and a result in a field are all rejected. A record that can reach itself through its fields is rejected with `VARN3049`.
 
@@ -56,7 +56,7 @@ A leading `-` negates a **numeric literal** and nothing else, so `-5` is a liter
 
 This makes a step count depend on the data. That is not new — `each` over a host list already charges per element — and it does not weaken determinism: the same input charges the same steps, and the budget is still a ceiling the run cannot exceed. What it does mean is that a step count is not readable from program shape alone. Both operands of `&&` and `||` must be `bool` (`VARN3050`), and a single `&` or `|` reports `VARN1005`, since there is no bitwise arithmetic to confuse it with.
 
-String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err[T](str.concat("over limit of ",str.from_i64(order.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
+String comparison and search are ordinal and case-sensitive, never culture-sensitive. `str.to_lower` and `str.to_upper` use invariant casing, so their result never depends on the host's locale. `str.from_i64` and `str.from_f64` format invariantly, `str.from_f64` round-trips, and `str.from_bool` yields `true` or `false`. These are what put a value into a failure message: `err(str.concat("over limit of ",str.from_i64(order.limit)))`. `str.length` counts UTF-16 code units in the bootstrap runtime.
 
 `f64` comparison follows IEEE 754 directly: every `eq`, `lt`, `gt`, `lte`, and `gte` involving NaN is `false`, and `ne` is `true`. `i64` and `str` compare by total order.
 

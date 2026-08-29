@@ -1,7 +1,7 @@
-# An expected failure is a value the caller must handle, not a crash.
-budget[steps=300]
+# An expected failure is a value the caller must handle, not a crash. 'if ok' is the only way in.
+budget[steps=400]
 
-rec Order(items:list[i64],customerTier:str)
+rec Order(items:list[i64],tier:str)
 rec Settlement(total:i64,discount:i64)
 
 fn rate(tier:str)->result[i64]
@@ -16,10 +16,10 @@ end
 
 fn main(order:Order)->result[Settlement]
     var total:i64 0
-    each item:i64 in order.items max 16
+    each item:i64 in order.items max 32
         set total total + item
     end
-    if ok percent:i64 rate(order.customerTier)
+    if ok percent:i64 rate(order.tier)
         if ok discount:i64 num.div(total * percent,100)
             ret ok(rec[Settlement](total=total,discount=discount))
         else err reason:str

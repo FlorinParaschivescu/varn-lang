@@ -9,7 +9,7 @@ fn sum(values:list[i64])->i64
 end
 
 fn main()->i64
-    let values:list[i64] list[i64](1,2,3,4)
+    let values:list[i64] list(1,2,3,4)
     let beyondEnd:i64? list.get(values,9)
     if let present:i64 beyondEnd
         ret -1

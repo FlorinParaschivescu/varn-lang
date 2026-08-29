@@ -102,23 +102,43 @@ public sealed record SomeExpressionSyntax(
     ExpressionSyntax Value,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
+/// <summary>
+/// A typed absence. The element type is written only where the context cannot supply it; the
+/// checker fills <see cref="InferredElementType"/> in before the interpreter or the canonical
+/// formatter reads <see cref="ElementType"/>, so both spellings behave identically.
+/// </summary>
 public sealed record NoneExpressionSyntax(
-    VarnType ElementType,
-    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+    VarnType? DeclaredElementType,
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan)
+{
+    public VarnType? InferredElementType { get; set; }
+
+    public VarnType ElementType => DeclaredElementType ?? InferredElementType ?? VarnType.Null;
+}
 
 public sealed record OkExpressionSyntax(
     ExpressionSyntax Value,
     SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
 
 public sealed record ErrExpressionSyntax(
-    VarnType ValueType,
+    VarnType? DeclaredValueType,
     ExpressionSyntax Error,
-    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan)
+{
+    public VarnType? InferredValueType { get; set; }
+
+    public VarnType ValueType => DeclaredValueType ?? InferredValueType ?? VarnType.Null;
+}
 
 public sealed record ListExpressionSyntax(
-    VarnType ElementType,
+    VarnType? DeclaredElementType,
     IReadOnlyList<ExpressionSyntax> Elements,
-    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan)
+{
+    public VarnType? InferredElementType { get; set; }
+
+    public VarnType ElementType => DeclaredElementType ?? InferredElementType ?? VarnType.Null;
+}
 
 public sealed record RecordExpressionSyntax(
     string TypeName,
@@ -152,4 +172,14 @@ public sealed record LogicalExpressionSyntax(
 public sealed record CallExpressionSyntax(
     string FunctionName,
     IReadOnlyList<ExpressionSyntax> Arguments,
-    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan);
+    SourceSpan SourceSpan) : ExpressionSyntax(SourceSpan)
+{
+    /// <summary>
+    /// The operator this call was desugared from, where it was. A failure must name what the
+    /// source says: 'div' is no longer spellable, so reporting it would name nothing the reader
+    /// can find.
+    /// </summary>
+    public string? OperatorSpelling { get; init; }
+
+    public string SourceName => OperatorSpelling ?? FunctionName;
+}

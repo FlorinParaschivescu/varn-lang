@@ -26,7 +26,7 @@ fn settle(order:Order)->Settlement
 end
 
 fn main()->i64
-    let order:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+    let order:Order rec[Order](items=list(1200,850,300),tier="gold")
     let settlement:Settlement settle(order)
     ret settlement.discount
 end

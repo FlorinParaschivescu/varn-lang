@@ -54,10 +54,10 @@ group         = "(", expression, ")" ;
 reference     = name, { ".", name } ;
 call          = identifier, "(", arguments?, ")" ;
 some          = "some", "(", expression, ")" ;
-none          = "none", "[", type, "]" ;
-list          = "list", "[", type, "]", "(", arguments?, ")" ;
+none          = "none", [ "[", type, "]" ] ;
+list          = "list", [ "[", type, "]" ], "(", arguments?, ")" ;
 ok            = "ok", "(", expression, ")" ;
-err           = "err", "[", type, "]", "(", expression, ")" ;
+err           = "err", [ "[", type, "]" ], "(", expression, ")" ;
 record-value  = "rec", "[", name, "]", "(", field-values?, ")" ;
 field-values  = field-value, { ",", field-value } ;
 field-value   = name, "=", expression ;
@@ -73,4 +73,4 @@ type          = ( identifier | "null"
 
 `max`, `from`, `to`, and `in` are **contextual** keywords: they carry meaning only inside a `loop` or `each` header, and are ordinary names everywhere else. `max(3,9)` is a call, `rec Window(max:i64)` declares a field, and `each item:i64 in values max 3` still parses. `fn`, `let`, `var`, `set`, `ret`, `end`, `if`, `else`, `loop`, `each`, `cap`, `budget`, `rec`, `list`, `result`, `ok`, `err`, `some`, `none`, `true`, `false`, and `null` are reserved everywhere.
 
-Binding, record, and field names are identifiers without `.` (`VARN2007`), so they never collide with dotted module function names. A `reference` and a `call` are told apart by the parenthesis: `total` reads a binding and `total()` calls a function. The lexer folds dots into identifiers so `io.print` stays one token, which makes `order.items` arrive as a single identifier; the parser splits it into a reference and one field access per segment. `@` is not part of the language: numeric slots were replaced by named bindings, and the character is still recognized only to report `VARN1004`. Every binary operator is left-associative. Arithmetic, comparison, and `!` desugar to the module call of the same meaning, so `a + b` and the rejected `add(a,b)` would produce an identical tree. `&&` and `||` are their own node, because a call would evaluate both operands. Unary `-` applies to a numeric literal only. Blocks are contextually terminated by `else` or `end`. Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.
+Binding, record, and field names are identifiers without `.` (`VARN2007`), so they never collide with dotted module function names. A `reference` and a `call` are told apart by the parenthesis: `total` reads a binding and `total()` calls a function. The lexer folds dots into identifiers so `io.print` stays one token, which makes `order.items` arrive as a single identifier; the parser splits it into a reference and one field access per segment. `@` is not part of the language: numeric slots were replaced by named bindings, and the character is still recognized only to report `VARN1004`. The type argument of `none`, `list`, and `err` is written only where the surrounding code does not already supply one; writing one it does supply is rejected (`VARN3052`), and having no source for it at all is rejected (`VARN3051`). Every binary operator is left-associative. Arithmetic, comparison, and `!` desugar to the module call of the same meaning, so `a + b` and the rejected `add(a,b)` would produce an identical tree. `&&` and `||` are their own node, because a call would evaluate both operands. Unary `-` applies to a numeric literal only. Blocks are contextually terminated by `else` or `end`. Whitespace is allowed between tokens. `#` starts a line comment. String escapes include `\\n`, `\\r`, `\\t`, `\\"`, and `\\\\`.

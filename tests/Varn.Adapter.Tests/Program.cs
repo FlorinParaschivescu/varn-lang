@@ -48,7 +48,7 @@ public static class Program
             if a == "gold"
                 ret ok(10)
             end
-            ret err[i64](str.concat("unknown tier: ",a))
+            ret err(str.concat("unknown tier: ",a))
         end
         fn main(a:Order)->result[Settlement]
             var b:i64 0
@@ -59,12 +59,12 @@ public static class Program
                 if ok e:i64 num.div(b * d,100)
                     ret ok(rec[Settlement](total=b,discount=e))
                 else err f:str
-                    ret err[Settlement](f)
+                    ret err(f)
                 end
             else err g:str
-                ret err[Settlement](g)
+                ret err(g)
             end
-            ret err[Settlement]("unreachable")
+            ret err("unreachable")
         end
         """;
 
@@ -292,7 +292,7 @@ public static class Program
             client.ServerInstructions?.Contains("if let value:i64 answer", StringComparison.Ordinal) is true,
             "Expected compact optional syntax guidance.");
         Assert(
-            client.ServerInstructions?.Contains("list[i64](1,2,3)", StringComparison.Ordinal) is true,
+            client.ServerInstructions?.Contains("list(1,2,3)", StringComparison.Ordinal) is true,
             "Expected compact typed-list syntax guidance.");
         Assert(
             client.ServerInstructions?.Contains("each value:i64 in values max 3", StringComparison.Ordinal) is true,
@@ -351,7 +351,7 @@ public static class Program
                 if a
                     ret some(42)
                 end
-                ret none[i64]
+                ret none
             end
             fn main()->i64
                 let a:i64? maybe(true)
@@ -394,7 +394,7 @@ public static class Program
         const string invalidListSource = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](1,2,3,4)
+                let a:list[i64] list(1,2,3,4)
                 each b:bool in a max 4
                 end
                 ret 0
@@ -412,7 +412,7 @@ public static class Program
         const string listSource = """
             budget[steps=200]
             fn main()->i64
-                let a:list[i64] list[i64](1,2,3,4)
+                let a:list[i64] list(1,2,3,4)
                 var b:i64 0
                 each c:i64 in a max 4
                     set b b + c
@@ -460,7 +460,7 @@ public static class Program
             budget[steps=300]
             rec Order(items:list[i64],tier:str)
             fn main()->i64
-                let a:Order rec[Order](items=list[i64](1200,850,300))
+                let a:Order rec[Order](items=list(1200,850,300))
                 ret list.length(a.lines)
             end
             """;
@@ -497,7 +497,7 @@ public static class Program
                 ret rec[Settlement](discount=0,total=b)
             end
             fn main()->i64
-                let a:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+                let a:Order rec[Order](items=list(1200,850,300),tier="gold")
                 ret settle(a).discount
             end
             """;

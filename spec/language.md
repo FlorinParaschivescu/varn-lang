@@ -64,13 +64,27 @@ Precedence runs, tightest first: field access, then unary `-` and `!`, then `*` 
 
 One concept gets one form, so every operator's call spelling is rejected: the prefix call form of `+`, `-`, `*`, `/`, `%`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, and `!` each report `VARN2008` naming the operator to write. A leading `-` negates a numeric literal (`-5`, `-1.5`) and nothing else; `VARN2009` reports `-value` and names `0 - value`, because a typed zero would have to guess between `i64` and `f64`.
 
+## Inferred type arguments
+
+`none`, `list(...)`, and `err(...)` take their type from what the program has already declared. Four positions supply one: a `let` or `var` declaration, the target of a `set`, a `ret` against the function's declared return type, and a record field initializer. A list also takes its element type from its first element.
+
+```varn
+fn rate(tier:str)->result[i64]
+    ret err(str.concat("unknown tier: ",tier))
+end
+```
+
+Writing a type the context already supplies is rejected with `VARN3052`, which names the form to write instead — one concept gets one form. Writing one that *contradicts* the context is an ordinary type error, reported with both types. Where nothing supplies a type, `VARN3051` says so; a call argument is the case that reaches it, because a module function may be overloaded and the argument type is therefore not known before the call resolves. Assign the value to a declared binding first.
+
+The type is settled during checking, so the interpreter, the canonical projection, and JSON results all see one concrete type: `err(reason)` and `err[Settlement](reason)` project identically.
+
 ## Typed optional values
 
-An optional type adds `?` to one supported scalar type. Construction is explicit: `some(expression)` contains a value and `none[type]` represents a typed absence.
+An optional type adds `?` to one supported scalar type. `some(expression)` contains a value and `none` represents a typed absence, taking its element type from the declaration around it.
 
 ```varn
 let answer:i64? some(42)
-let missing:i64? none[i64]
+let missing:i64? none
 ```
 
 Optional construction does not convert values implicitly. For example, `some(true)` has type `bool?` and cannot initialize an `i64?` binding. The supported element types are `i64`, `f64`, `bool`, and `str`; `null?`, `any?`, and nested optionals are rejected with `VARN3028`.
@@ -89,10 +103,10 @@ The source expression must be optional (`VARN3026`) and the binding type must ex
 
 ## Typed lists
 
-Typed list construction states the homogeneous scalar element type explicitly, so empty lists do not require contextual inference:
+A list is homogeneous. Its element type comes from the declaration around it, or from its first element when it has one:
 
 ```varn
-let values:list[i64] list[i64](10,20,30)
+let values:list[i64] list(10,20,30)
 let count:i64 list.length(values)
 let second:i64? list.get(values,1)
 ```
@@ -119,11 +133,11 @@ fn rate(tier:str)->result[i64]
     if tier == "gold"
         ret ok(10)
     end
-    ret err[i64](str.concat("unknown tier: ",tier))
+    ret err(str.concat("unknown tier: ",tier))
 end
 ```
 
-`ok(expression)` infers its type from the expression. `err[T](expression)` states the success type it is standing in for, exactly as `none[T]` does, and its expression must be `str` (`VARN3046`).
+`ok(expression)` infers its type from the expression. `err(expression)` takes the success type it is standing in for from the declaration around it, exactly as `none` does, and its expression must be `str` (`VARN3046`).
 
 `if ok` is the only operation that extracts either side:
 
@@ -156,7 +170,7 @@ A record that can reach itself through its fields, directly or through another r
 Construction names the record and sets every declared field exactly once:
 
 ```varn
-let order:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+let order:Order rec[Order](items=list(1200,850,300),tier="gold")
 ```
 
 The checker reports each fault exactly:

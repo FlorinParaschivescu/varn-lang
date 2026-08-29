@@ -110,6 +110,12 @@ public static class Program
             ("boolean operators short-circuit", BooleanOperatorsShortCircuit),
             ("short-circuit operands must be bool", ShortCircuitOperandsMustBeBool),
             ("short-circuit operators have their own projection", ShortCircuitHasOwnProjection),
+            ("type arguments come from the surrounding declaration", TypeArgumentsAreInferred),
+            ("a supplied type argument is rejected as redundant", RedundantTypeArgumentIsRejected),
+            ("an undeterminable type argument is reported", UndeterminableTypeArgumentIsReported),
+            ("the skill card teaches only valid Varn", SkillCardTeachesValidVarn),
+            ("every shipped program checks and runs", ShippedProgramsCheckAndRun),
+            ("a runtime failure names the operator, not the call", RuntimeFailureNamesTheOperator),
             ("comparison set is complete over ordered types", ComparisonSetIsComplete),
             ("f64 comparison follows IEEE NaN semantics", F64ComparisonFollowsIeee),
             ("arithmetic covers mod, abs, min, and max", ArithmeticCoversModAbsMinMax),
@@ -159,7 +165,7 @@ public static class Program
 
     private static Task LexerEmitsStructuralTokens()
     {
-        var result = VarnLexer.Lex("var a:i64 0\nset a 1\nlet c:i64? some(1)\nlet d:i64? none[i64]\nlet e:list[i64] list[i64](1)\nrec Pair(a:i64)\nlet g:Pair rec[Pair](a=1)\nlet h:i64 g.a\nlet i:i64 pair().a\nif true\nloop b:i64 from 0 to 1 max 1\nend\neach f:i64 in e max 1\nend\nend\n");
+        var result = VarnLexer.Lex("var a:i64 0\nset a 1\nlet c:i64? some(1)\nlet d:i64? none\nlet e:list[i64] list(1)\nrec Pair(a:i64)\nlet g:Pair rec[Pair](a=1)\nlet h:i64 g.a\nlet i:i64 pair().a\nif true\nloop b:i64 from 0 to 1 max 1\nend\neach f:i64 in e max 1\nend\nend\n");
         Assert(result.Diagnostics.Count == 0, "Expected no lexer diagnostics.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Var), "Expected a var token.");
         Assert(result.Tokens.Any(static token => token.Kind == TokenKind.Set), "Expected a set token.");
@@ -450,7 +456,7 @@ public static class Program
         Assert(some.ToCanonicalString() == "some(42)", "Expected canonical present optional.");
 
         var none = VarnValue.None(VarnType.I64);
-        Assert(none.Type == optionalType, "Expected none[i64] to have type i64?.");
+        Assert(none.Type == optionalType, "Expected none to have type i64?.");
         Assert(!none.IsSome, "Expected an absent optional.");
         Assert(none.ToCanonicalString() == "none[i64]", "Expected canonical absent optional.");
 
@@ -575,14 +581,14 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let a:null? none[null]
+                let a:null? none
                 ret 0
             end
             """,
             """
             budget[steps=20]
             fn main()->i64
-                let a:i64?? none[i64?]
+                let a:i64?? none
                 ret 0
             end
             """,
@@ -612,10 +618,11 @@ public static class Program
                 ret 0
             end
             """;
+        // An annotation that contradicts the context is a type error, not a redundant one.
         const string noneMismatch = """
             budget[steps=20]
             fn main()->i64
-                let a:i64? none[str]
+                let a:i64? none[bool]
                 ret 0
             end
             """;
@@ -630,7 +637,7 @@ public static class Program
             if a
                 ret some(42)
             end
-            ret none[i64]
+            ret none
         end
         fn main()->i64
             let a:i64? maybe({{present.ToString().ToLowerInvariant()}})
@@ -666,7 +673,7 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](10,20,30)
+                let a:list[i64] list(10,20,30)
                 let b:i64 list.length(a)
                 let c:i64? list.get(a,1)
                 if let d:i64 c
@@ -685,7 +692,7 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](10,20)
+                let a:list[i64] list(10,20)
                 let b:i64? list.get(a,-1)
                 let c:i64? list.get(a,2)
                 if let d:i64 b
@@ -707,7 +714,7 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](1,2,3,4)
+                let a:list[i64] list(1,2,3,4)
                 var b:i64 0
                 each c:i64 in a max 4
                     set b b + c
@@ -725,7 +732,7 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](1,2,3)
+                let a:list[i64] list(1,2,3)
                 each b:i64 in a max 2
                 end
                 ret 0
@@ -742,7 +749,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let a:list[i64] list[i64](1,true)
+                let a:list[i64] list(1,true)
                 ret 0
             end
             """;
@@ -755,7 +762,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let a:list[null] list[null]()
+                let a:list[null] list()
                 let b:list[list[i64]] list[list[i64]]()
                 ret 0
             end
@@ -764,7 +771,7 @@ public static class Program
         Assert(diagnostics.Count(diagnostic => diagnostic.Code == "VARN3029") >= 2, FormatDiagnostics(diagnostics));
 
         var elements = Enumerable.Repeat("0", VarnValue.MaxListElements + 1);
-        var oversized = $"budget[steps=20]\nfn main()->i64\nlet a:list[i64] list[i64]({string.Join(',', elements)})\nret 0\nend\n";
+        var oversized = $"budget[steps=20]\nfn main()->i64\nlet a:list[i64] list({string.Join(',', elements)})\nret 0\nend\n";
         AssertHasDiagnostic(CreateEngine().Check(oversized).Diagnostics, "VARN3031");
         return Task.CompletedTask;
     }
@@ -776,7 +783,7 @@ public static class Program
             fn main()->i64
                 each a:i64 in 1 max 1
                 end
-                let b:list[i64] list[i64](1)
+                let b:list[i64] list(1)
                 each c:bool in b max 1
                 end
                 each d:i64 in b max 1025
@@ -796,7 +803,7 @@ public static class Program
         const string source = """
             budget[steps=30]
             fn main()->i64
-                let a:list[i64] list[i64](1)
+                let a:list[i64] list(1)
                 each b:i64 in a max 1
                 end
                 ret b
@@ -811,7 +818,7 @@ public static class Program
         const string source = """
             budget[steps=30]
             fn main()->i64
-                let a:list[i64] list[i64](1)
+                let a:list[i64] list(1)
                 each b:i64 in a max 1
                     set b 2
                 end
@@ -828,7 +835,7 @@ public static class Program
             budget[steps=30]
             fn main()->i64
                 let a:i64 list.length(1)
-                let b:list[i64] list[i64](1)
+                let b:list[i64] list(1)
                 let c:i64? list.get(b,true)
                 ret 0
             end
@@ -844,14 +851,14 @@ public static class Program
         const string empty = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64]()
+                let a:list[i64] list()
                 ret list.length(a)
             end
             """;
         const string populated = """
             budget[steps=100]
             fn main()->i64
-                let a:list[i64] list[i64](1,2,3)
+                let a:list[i64] list(1,2,3)
                 ret list.length(a)
             end
             """;
@@ -967,9 +974,9 @@ public static class Program
             budget[steps=40]
             rec Order(items:list[i64],tier:str)
             fn main()->i64
-                let a:Order rec[Order](items=list[i64](1),tier="g",extra=1)
-                let b:Order rec[Order](items=list[i64](1))
-                let c:Order rec[Order](items=list[i64](1),tier="g",tier="h")
+                let a:Order rec[Order](items=list(1),tier="g",extra=1)
+                let b:Order rec[Order](items=list(1))
+                let c:Order rec[Order](items=list(1),tier="g",tier="h")
                 let d:Order rec[Order](items=1,tier="g")
                 ret 0
             end
@@ -1082,7 +1089,7 @@ public static class Program
             fn main()->i64
                 let a:i64 1
                 let b:str a.tier
-                let c:Order rec[Order](items=list[i64](1),tier="g")
+                let c:Order rec[Order](items=list(1),tier="g")
                 let d:str c.absent
                 ret 0
             end
@@ -1184,7 +1191,7 @@ public static class Program
             budget[steps=200]
             fn main()->i64
                 let a:i64 -5
-                let b:list[i64] list[i64](-1,2,-3)
+                let b:list[i64] list(-1,2,-3)
                 let c:i64 a - 5
                 let d:i64 a-5
                 ret abs(c) + abs(d) + list.length(b) + a
@@ -1267,8 +1274,8 @@ public static class Program
             budget[steps=20]
             rec Pair(a:i64)
             fn main()->i64
-                let a:Pair? none[Pair]
-                let b:list[Pair] list[Pair]()
+                let a:Pair? none
+                let b:list[Pair] list()
                 ret 0
             end
             """;
@@ -1279,9 +1286,9 @@ public static class Program
             budget[steps=20]
             rec Pair(a:i64)
             fn main()->i64
-                let a:Pair?? none[Pair?]
+                let a:Pair?? none
                 let b:list[list[Pair]] list[list[Pair]]()
-                let c:Missing? none[Missing]
+                let c:Missing? none
                 ret 0
             end
             """;
@@ -1374,7 +1381,7 @@ public static class Program
             ret rec[Settlement](total=b,discount=c)
         end
         fn main()->i64
-            let a:Order rec[Order](items=list[i64](1200,850,300),tier="gold")
+            let a:Order rec[Order](items=list(1200,850,300),tier="gold")
             let b:Settlement settle(a)
             ret b.discount
         end
@@ -1724,6 +1731,198 @@ public static class Program
         return Task.CompletedTask;
     }
 
+    private static async Task TypeArgumentsAreInferred()
+    {
+        const string source = """
+            budget[steps=200]
+            rec Bag(items:list[str],note:str)
+            fn find(present:bool)->i64?
+                if present
+                    ret some(7)
+                end
+                ret none
+            end
+            fn label(known:bool)->result[str]
+                if known
+                    ret ok("known")
+                end
+                ret err("unknown")
+            end
+            fn main()->i64
+                var names:list[str] list()
+                set names list.append(names,"first")
+                let bag:Bag rec[Bag](items=list("a","b"),note="n")
+                if let found:i64 find(true)
+                    if ok text:str label(true)
+                        ret found + list.length(names) + list.length(bag.items) + str.length(text)
+                    end
+                end
+                ret 0
+            end
+            """;
+        var result = await CreateEngine().RunAsync(source).ConfigureAwait(false);
+        Assert(result.IsSuccess, FormatDiagnostics(result.Diagnostics));
+        // 7 + 1 + 2 + 5.
+        Assert(result.ReturnValue?.AsI64() == 15, $"Expected 15, got {result.ReturnValue?.AsI64()}.");
+    }
+
+    private static Task RedundantTypeArgumentIsRejected()
+    {
+        // The type is settled during checking, so the written and inferred spellings cannot be
+        // told apart afterwards. That is why only one of them is allowed.
+        const string inferred = """
+            budget[steps=40]
+            fn rate(tier:str)->result[i64]
+                ret err(tier)
+            end
+            fn main()->i64
+                ret 0
+            end
+            """;
+        const string written = """
+            budget[steps=40]
+            fn rate(tier:str)->result[i64]
+                ret err[i64](tier)
+            end
+            fn main()->i64
+                ret 0
+            end
+            """;
+        var inferredCheck = CreateEngine().Check(inferred);
+        Assert(inferredCheck.IsValid, FormatDiagnostics(inferredCheck.Diagnostics));
+        var writtenCheck = CreateEngine().Check(written);
+        AssertHasDiagnostic(writtenCheck.Diagnostics, "VARN3052");
+        Assert(
+            CanonicalFormatter.Format(inferredCheck.Program) == CanonicalFormatter.Format(writtenCheck.Program),
+            "Expected both spellings to project identically.");
+        return Task.CompletedTask;
+    }
+
+    private static Task UndeterminableTypeArgumentIsReported()
+    {
+        // A call argument does not supply one, because a module function may be overloaded and the
+        // argument type is not known before the call resolves.
+        const string source = """
+            budget[steps=40]
+            fn take(values:list[str])->i64
+                ret list.length(values)
+            end
+            fn main()->i64
+                ret take(list())
+            end
+            """;
+        AssertHasDiagnostic(CreateEngine().Check(source).Diagnostics, "VARN3051");
+        return Task.CompletedTask;
+    }
+
+    private static Task SkillCardTeachesValidVarn()
+    {
+        // The card is what an agent loads instead of the specification, so a sample that no longer
+        // checks is worse than no card at all.
+        var card = Path.Combine(RepositoryRoot(), ".claude", "skills", "varn", "SKILL.md");
+        Assert(File.Exists(card), $"Expected the skill card at {card}.");
+        var programs = FencedVarnBlocks(File.ReadAllText(card));
+        Assert(programs.Count > 0, "Expected the card to carry at least one complete program.");
+        foreach (var program in programs)
+        {
+            var check = CreateEngine().Check(program);
+            Assert(check.IsValid, $"A program in SKILL.md does not check: {FormatDiagnostics(check.Diagnostics)}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task ShippedProgramsCheckAndRun()
+    {
+        var root = RepositoryRoot();
+        var skillExamples = Path.Combine(root, ".claude", "skills", "varn", "examples");
+        foreach (var path in Directory.GetFiles(skillExamples, "*.varn").OrderBy(static name => name, StringComparer.Ordinal))
+        {
+            var input = Path.ChangeExtension(path, ".json");
+            Assert(File.Exists(input), $"Expected {Path.GetFileName(path)} to ship the input it documents.");
+            var result = await CreateEngine().RunAsync(
+                await File.ReadAllTextAsync(path).ConfigureAwait(false),
+                new VarnRunOptions { Input = await File.ReadAllTextAsync(input).ConfigureAwait(false) })
+                .ConfigureAwait(false);
+            Assert(result.IsSuccess, $"{Path.GetFileName(path)} did not run: {FormatDiagnostics(result.Diagnostics)}");
+        }
+
+        foreach (var path in Directory.GetFiles(Path.Combine(root, "examples"), "*.varn"))
+        {
+            // module-demo.varn is the one that needs an assembly loaded, so CI exercises it
+            // separately through --module.
+            if (Path.GetFileName(path) == "module-demo.varn")
+            {
+                continue;
+            }
+
+            var check = CreateEngine().Check(await File.ReadAllTextAsync(path).ConfigureAwait(false));
+            Assert(check.IsValid, $"{Path.GetFileName(path)} does not check: {FormatDiagnostics(check.Diagnostics)}");
+        }
+    }
+
+    private static List<string> FencedVarnBlocks(string markdown)
+    {
+        var blocks = new List<string>();
+        var lines = markdown.Split('\n');
+        var current = new List<string>();
+        var inside = false;
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("```varn", StringComparison.Ordinal))
+            {
+                inside = true;
+                current.Clear();
+                continue;
+            }
+
+            if (inside && line.StartsWith("```", StringComparison.Ordinal))
+            {
+                inside = false;
+                blocks.Add(string.Join("\n", current));
+                continue;
+            }
+
+            if (inside)
+            {
+                current.Add(line);
+            }
+        }
+
+        return blocks;
+    }
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Varn.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Could not find the repository root.");
+    }
+
+    private static async Task RuntimeFailureNamesTheOperator()
+    {
+        // '/' desugars to the 'div' module function, but 'div' is not spellable, so a failure that
+        // named it would point at something the reader cannot find in the source.
+        const string source = """
+            budget[steps=100]
+            rec Pair(a:i64,b:i64)
+            fn main(pair:Pair)->i64
+                ret pair.a / pair.b
+            end
+            """;
+        var result = await CreateEngine().RunAsync(
+            source,
+            new VarnRunOptions { Input = """{"a":10,"b":0}""" }).ConfigureAwait(false);
+        Assert(!result.IsSuccess, "Expected a division by zero to abort.");
+        var message = string.Join("; ", result.Diagnostics.Select(static diagnostic => diagnostic.Message));
+        Assert(message.Contains("'/'", StringComparison.Ordinal), $"Expected the operator to be named, got: {message}");
+        Assert(!message.Contains("'div'", StringComparison.Ordinal), $"Expected no internal name, got: {message}");
+    }
+
     private static async Task ComparisonSetIsComplete()
     {
         (string Expression, long Expected)[] cases =
@@ -1838,7 +2037,7 @@ public static class Program
         const string source = """
             budget[steps=100]
             fn main()->i64
-                let a:list[str] list[str]("gold","silver")
+                let a:list[str] list("gold","silver")
                 if list.contains(a,"silver")
                     ret 1
                 end
@@ -1852,7 +2051,7 @@ public static class Program
         const string longer = """
             budget[steps=100]
             fn main()->i64
-                let a:list[str] list[str]("gold","silver","bronze")
+                let a:list[str] list("gold","silver","bronze")
                 if list.contains(a,"silver")
                     ret 1
                 end
@@ -1893,7 +2092,7 @@ public static class Program
             """
             budget[steps=20]
             fn main()->i64
-                let a:list[i64] list[i64](1)
+                let a:list[i64] list(1)
                 let b:bool list.contains(a,"1")
                 ret 0
             end
@@ -1950,7 +2149,7 @@ public static class Program
             rec Window(max:i64,from:i64)
             fn main()->i64
                 let a:Window rec[Window](max=9,from=3)
-                let b:list[i64] list[i64](1,2,3)
+                let b:list[i64] list(1,2,3)
                 var c:i64 0
                 each d:i64 in b max 3
                     set c c + d
@@ -2109,7 +2308,7 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let a:result[i64] err[i64](42)
+                let a:result[i64] err(42)
                 ret 0
             end
             """;
@@ -2122,10 +2321,10 @@ public static class Program
         const string source = """
             budget[steps=20]
             fn main()->i64
-                let a:result[null] err[null]("x")
+                let a:result[null] err("x")
                 let b:result[list[i64]] err[list[i64]]("x")
                 let c:result[result[i64]] err[result[i64]]("x")
-                let d:result[Missing] err[Missing]("x")
+                let d:result[Missing] err("x")
                 ret 0
             end
             """;
@@ -2288,7 +2487,7 @@ public static class Program
         var constructors = CreateEngine().Check("""
             budget[steps=20]
             fn main()->result[i64]
-                let a:result[i64] err[i64]("x")
+                let a:result[i64] err("x")
                 ret ok(1)
             end
             """);
@@ -2352,7 +2551,7 @@ public static class Program
             if a == "basic"
                 ret ok(0)
             end
-            ret err[i64](str.concat("unknown tier: ",a))
+            ret err(str.concat("unknown tier: ",a))
         end
         fn main(a:Order)->result[Settlement]
             var b:i64 0
@@ -2363,12 +2562,12 @@ public static class Program
                 if ok e:i64 num.div(b * d,100)
                     ret ok(rec[Settlement](total=b,discount=e))
                 else err f:str
-                    ret err[Settlement](f)
+                    ret err(f)
                 end
             else err g:str
-                ret err[Settlement](g)
+                ret err(g)
             end
-            ret err[Settlement]("unreachable")
+            ret err("unreachable")
         end
         """;
 
@@ -2450,7 +2649,7 @@ public static class Program
             rec Nums(values:list[i64])
             rec Kept(values:list[i64])
             fn main(a:Nums)->Kept
-                var b:list[i64] list[i64]()
+                var b:list[i64] list()
                 each c:i64 in a.values max 32
                     if c > 10
                         set b list.append(b,c)
@@ -2468,7 +2667,7 @@ public static class Program
         const string mismatch = """
             budget[steps=40]
             fn main()->i64
-                let a:list[i64] list.append(list[i64](1),"x")
+                let a:list[i64] list.append(list(1),"x")
                 ret 0
             end
             """;
@@ -2481,7 +2680,7 @@ public static class Program
         var source = $$"""
             budget[steps=5000]
             fn main()->i64
-                let a:list[i64] list[i64]({{elements}})
+                let a:list[i64] list({{elements}})
                 let b:list[i64] list.append(a,2)
                 ret list.length(b)
             end
@@ -2499,7 +2698,7 @@ public static class Program
             rec Receipt(totalCents:i64)
             fn main(a:Order)->result[Receipt]
                 if a.totalCents > a.limitCents
-                    ret err[Receipt](str.concat("over limit of ",str.from_i64(a.limitCents)))
+                    ret err(str.concat("over limit of ",str.from_i64(a.limitCents)))
                 end
                 ret ok(rec[Receipt](totalCents=a.totalCents))
             end
@@ -2623,7 +2822,7 @@ public static class Program
                 var b:i64 0
                 set b b + 1
                 let c:i64? some(1)
-                let d:i64? none[i64]
+                let d:i64? none
                 if let e:i64 c
                     set b b + e
                 end

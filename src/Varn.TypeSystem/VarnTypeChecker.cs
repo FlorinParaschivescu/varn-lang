@@ -275,7 +275,7 @@ public sealed class VarnTypeChecker
             {
                 case LetStatementSyntax let:
                     CheckType(let.Type, let.Span);
-                    var valueType = CheckExpression(let.Value, function, symbols);
+                    var valueType = CheckExpression(let.Value, function, symbols, let.Type);
                     if (!IsAssignable(let.Type, valueType))
                     {
                         Report("VARN3006", $"Cannot assign {valueType} to binding '{let.Name}' of type {let.Type}.", let.Span);
@@ -289,7 +289,7 @@ public sealed class VarnTypeChecker
                     break;
                 case VarStatementSyntax variable:
                     CheckType(variable.Type, variable.Span);
-                    var initialType = CheckExpression(variable.Value, function, symbols);
+                    var initialType = CheckExpression(variable.Value, function, symbols, variable.Type);
                     if (!IsAssignable(variable.Type, initialType))
                     {
                         Report("VARN3006", $"Cannot assign {initialType} to binding '{variable.Name}' of type {variable.Type}.", variable.Span);
@@ -302,12 +302,14 @@ public sealed class VarnTypeChecker
 
                     break;
                 case SetStatementSyntax assignment:
-                    var assignedType = CheckExpression(assignment.Value, function, symbols);
                     if (!symbols.TryGetValue(assignment.Name, out var target))
                     {
+                        _ = CheckExpression(assignment.Value, function, symbols);
                         Report("VARN3010", $"Binding '{assignment.Name}' is not defined.", assignment.Span);
                         break;
                     }
+
+                    var assignedType = CheckExpression(assignment.Value, function, symbols, target.Type);
 
                     if (!target.IsMutable)
                     {
@@ -329,7 +331,7 @@ public sealed class VarnTypeChecker
 
                     break;
                 case ReturnStatementSyntax returnStatement:
-                    var returnType = CheckExpression(returnStatement.Value, function, symbols);
+                    var returnType = CheckExpression(returnStatement.Value, function, symbols, function.ReturnType);
                     if (!IsAssignable(function.ReturnType, returnType))
                     {
                         Report("VARN3008", $"Function '{function.Name}' must return {function.ReturnType}, not {returnType}.", returnStatement.Span);
@@ -513,26 +515,39 @@ public sealed class VarnTypeChecker
         CheckStatements(each.Body, function, eachSymbols);
     }
 
+    /// <summary>
+    /// <paramref name="expected"/> is the type the surrounding code already declared, where there
+    /// is one. It is what lets 'err(message)', 'none', and 'list()' omit an annotation the program
+    /// has already written down once.
+    /// </summary>
     private VarnType CheckExpression(
         ExpressionSyntax expression,
         FunctionSyntax containingFunction,
-        IReadOnlyDictionary<string, SlotSymbol> symbols)
+        IReadOnlyDictionary<string, SlotSymbol> symbols,
+        VarnType? expected = null)
     {
         switch (expression)
         {
             case LiteralExpressionSyntax literal:
                 return literal.Type;
             case SomeExpressionSyntax some:
-                var valueType = CheckExpression(some.Value, containingFunction, symbols);
+                var valueType = CheckExpression(some.Value, containingFunction, symbols, expected?.OptionalElementType);
                 var someType = VarnType.Optional(valueType);
                 CheckType(someType, some.Span);
                 return someType;
             case NoneExpressionSyntax none:
+                none.InferredElementType = Resolve(
+                    none.DeclaredElementType,
+                    expected?.OptionalElementType,
+                    "none",
+                    "the element type",
+                    "none",
+                    none.Span);
                 var noneType = VarnType.Optional(none.ElementType);
                 CheckType(noneType, none.Span);
                 return noneType;
             case OkExpressionSyntax ok:
-                var okValueType = CheckExpression(ok.Value, containingFunction, symbols);
+                var okValueType = CheckExpression(ok.Value, containingFunction, symbols, expected?.ResultValueType);
                 var okType = VarnType.Result(okValueType);
                 CheckType(okType, ok.Span);
                 return okType;
@@ -543,10 +558,31 @@ public sealed class VarnTypeChecker
                     Report("VARN3046", $"A result failure must be str, not {errorType}.", err.Error.Span);
                 }
 
+                err.InferredValueType = Resolve(
+                    err.DeclaredValueType,
+                    expected?.ResultValueType,
+                    "err",
+                    "the success type",
+                    "err(message)",
+                    err.Span);
                 var errType = VarnType.Result(err.ValueType);
                 CheckType(errType, err.Span);
                 return errType;
             case ListExpressionSyntax list:
+                // A list knows its own elements, so the context is only needed for an empty one.
+                var elementHint = expected?.ListElementType;
+                if (elementHint is null && list.Elements.Count > 0)
+                {
+                    elementHint = CheckExpression(list.Elements[0], containingFunction, symbols);
+                }
+
+                list.InferredElementType = Resolve(
+                    list.DeclaredElementType,
+                    elementHint,
+                    "list",
+                    "the element type",
+                    "list(...)",
+                    list.Span);
                 CheckType(VarnType.List(list.ElementType), list.Span);
                 if (list.Elements.Count > VarnValue.MaxListElements)
                 {
@@ -558,7 +594,7 @@ public sealed class VarnTypeChecker
 
                 foreach (var element in list.Elements)
                 {
-                    var elementType = CheckExpression(element, containingFunction, symbols);
+                    var elementType = CheckExpression(element, containingFunction, symbols, list.ElementType);
                     if (elementType != list.ElementType)
                     {
                         Report(
@@ -863,6 +899,45 @@ public sealed class VarnTypeChecker
 
     private void Report(string code, string message, SourceSpan span) =>
         _diagnostics.Add(new Diagnostic(code, message, span));
+
+    /// <summary>
+    /// Settles a type that may be written or inferred. Writing one the context already supplies is
+    /// rejected, because one concept gets one form; having neither is rejected because nothing
+    /// determines it.
+    /// </summary>
+    private VarnType? Resolve(
+        VarnType? declared,
+        VarnType? inferred,
+        string keyword,
+        string description,
+        string spelling,
+        SourceSpan span)
+    {
+        if (declared is not null)
+        {
+            // Only an annotation that agrees with the context is redundant. One that disagrees is
+            // a real fault, and the assignability check reports it with the types involved.
+            if (inferred is not null && declared == inferred)
+            {
+                Report(
+                    "VARN3052",
+                    $"'{keyword}' takes {description} from the surrounding declaration here. Write '{spelling}'.",
+                    span);
+            }
+
+            return null;
+        }
+
+        if (inferred is null)
+        {
+            Report(
+                "VARN3051",
+                $"Nothing here determines {description} of '{keyword}'. Assign it to a declared binding, or return it from a function that declares it.",
+                span);
+        }
+
+        return inferred;
+    }
 
     private readonly record struct SlotSymbol(VarnType Type, bool IsMutable);
 }

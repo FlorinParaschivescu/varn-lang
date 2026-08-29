@@ -41,20 +41,22 @@ Everything downstream depends on the surface being final, so this comes first an
 - [x] **Infix arithmetic and comparison.** `a * b` is three tokens; the call spelling it replaced was six, paid on every generation forever. Calls stay for everything else: infix is worth it only where precedence is universal and unambiguous. Every operator desugars to the call it replaces, so the checker, interpreter, canonical projection, and step budget were untouched; the call spelling now reports `VARN2008` and names the operator.
 - [x] **Short-circuit `&&` and `||`,** removing the nested `if` ladders that exist only to avoid evaluating both operands. Prefix `!` came with them. Unlike arithmetic these cannot desugar to a call, so they are their own node through the checker, interpreter, and canonical projection. A step count now depends on the data, which `each` already made true; determinism is untouched.
 - [x] **One form per concept.** No aliases, no second spelling. Choice costs deliberation and adds variance to generation. Enforced for bindings (`VARN1004`) and for every operator with a call spelling (`VARN2008`).
-- [ ] **Inference where the information is already in scope** — `err(...)` from the declared return type, list and record element types from context.
+- [x] **Inference where the information is already in scope.** `none`, `list(...)`, and `err(...)` take their type from a `let`, a `var`, a `set` target, a `ret` against the declared return type, or a record field; a list also takes it from its first element. Writing one the context supplies reports `VARN3052`; nothing supplying one reports `VARN3051`. The type is settled during checking, so `err(reason)` and `err[Settlement](reason)` project identically.
 
-Exit criterion: the surface is frozen and every remaining item can be built against it without a rewrite.
+**The surface is frozen.** Named bindings, infix arithmetic and comparison, short-circuit `&&`/`||` with prefix `!`, one form per concept, and inferred type arguments are all in. Changing it again means rewriting the skill and invalidating any corpus generated against it, so treat a further change as a decision to redo that work.
 
 ### 2. Ship Varn as a skill
 
 The point of the language is that an agent spends fewer tokens getting a correct, checked rule than it would writing the same rule in a general-purpose language. A skill is how that reaches a real agent: it loads the language, hands over `check` and `run`, and is the thing to measure.
 
-- [ ] One document that is sufficient on its own to write correct Varn, kept as small as the frozen surface allows. This is the language card, and it is the skill's body.
-- [ ] Worked examples covering the shapes that actually recur: a rule over a record, a fold over a list of records, an optional that must be checked, a failure carried as a value.
-- [ ] The check-repair loop written down as a procedure, so a diagnostic leads to an edit rather than a regeneration.
-- [ ] Wire it to the existing MCP tools so the skill can check and run without leaving the session.
+- [x] One document that is sufficient on its own to write correct Varn, kept as small as the frozen surface allows. `.claude/skills/varn/SKILL.md`, about 2,000 tokens against roughly 9,200 for `spec/`.
+- [x] Worked examples covering the shapes that actually recur: a rule over a record, a fold over a list of records, an optional that must be checked, a failure carried as a value. Each ships the input JSON it documents, and the test suite runs all four.
+- [x] The check-repair loop written down as a procedure, so a diagnostic leads to an edit rather than a regeneration, with a table mapping each common code to the edit it calls for.
+- [x] Wire it to the existing MCP tools so the skill can check and run without leaving the session, registered by `scripts/register-codex-mcp.sh`.
 
 Exit criterion: an agent with no prior exposure loads the skill and writes a correct rule on the first or second attempt, and the whole exchange costs fewer tokens than the same rule written and verified in Python.
+
+**Built, unmeasured.** The card exists and every sample in it is verified by the test suite, but nobody has yet run the experiment the exit criterion describes: a fresh session, given only the card and a task, with no access to this repository. Until that is run, the claim that the skill saves tokens is a design argument, not a result. It needs no API key — a fresh session is a clean generator.
 
 ### 3. The oracle loop
 
@@ -116,7 +118,7 @@ Also fixed here: `max`, `from`, `to`, and `in` became contextual keywords. They 
 Varn was used to write ordinary programs — payroll with overtime, an over-limit receipt, a cart of line items, a filter, a tax table — and every point of friction was recorded and then fixed. Five gaps surfaced, all of which the author had been working around by hand without noticing.
 
 - [x] **A value could not be put into a message.** `str.to_i64` parsed strings into numbers, but nothing went the other way, so every failure reason had to be a constant. For a language whose pitch is that failures carry reasons, that was the worst of the five. Added `str.from_i64`, `str.from_f64`, `str.from_bool`.
-- [x] **Every function needed an unreachable trailing `ret`.** `if ... ret ... else ... ret ... end` was rejected, so programs ended in lies like `ret err[Settlement]("unreachable")` — which this repository's own examples did. The checker now accepts a body whose every branch returns; a loop still does not count, because it may run zero times. The unreachable lines are gone from the examples.
+- [x] **Every function needed an unreachable trailing `ret`.** `if ... ret ... else ... ret ... end` was rejected, so programs ended in lies like `ret err("unreachable")` — which this repository's own examples did. The checker now accepts a body whose every branch returns; a loop still does not count, because it may run zero times. The unreachable lines are gone from the examples.
 - [x] **A record could not contain a record, and a list could not hold one.** Line items, batches, addresses — the most common shapes in real data — were inexpressible. A record field, list element, and optional may now each hold a declared record, with nesting stopping at one level. Recursive records are rejected with `VARN3049`.
 - [x] **Lists were construct-only.** There was no way to build one, so `each` could only fold to a scalar and no transformation could produce a collection. Added `list.append`, which returns a new list.
 - [x] **Chained field access did not parse.** Found by a test written for the nesting work: the lexer folds dots into identifiers so `io.print` stays one token, which made `order.home.city` arrive as a single `home.city` identifier. The parser now splits it, which is unambiguous because field names may not contain dots.

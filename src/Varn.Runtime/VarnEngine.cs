@@ -422,7 +422,7 @@ public sealed class VarnEngine
             {
                 throw new VarnExecutionException(
                     "VARN4003",
-                    $"Module '{moduleFunction.ModuleName}' failed in '{call.FunctionName}': {exception.Message}",
+                    $"Module '{moduleFunction.ModuleName}' failed in '{call.SourceName}': {exception.Message}",
                     call.Span);
             }
         }

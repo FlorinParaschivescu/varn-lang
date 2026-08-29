@@ -1,0 +1,15 @@
+# An absent value has no fields to read. 'if let' is the only way in, so it cannot be forgotten.
+budget[steps=200]
+
+rec Person(name:str,age:i64?)
+rec Greeting(text:str)
+
+fn main(person:Person)->Greeting
+    if let age:i64 person.age
+        if age >= 18
+            ret rec[Greeting](text=str.concat("adult ",person.name))
+        end
+        ret rec[Greeting](text=str.concat("minor ",person.name))
+    end
+    ret rec[Greeting](text=str.concat("age unknown for ",person.name))
+end

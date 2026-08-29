@@ -1,0 +1,18 @@
+# A fold over a list of records that also builds a list. 'each' needs a literal ceiling.
+budget[steps=800]
+
+rec Line(sku:str,qty:i64,unitCents:i64)
+rec Cart(lines:list[Line])
+rec Invoice(subtotalCents:i64,freeSkus:list[str])
+
+fn main(cart:Cart)->Invoice
+    var subtotal:i64 0
+    var free:list[str] list()
+    each line:Line in cart.lines max 64
+        set subtotal subtotal + line.qty * line.unitCents
+        if line.unitCents == 0
+            set free list.append(free,line.sku)
+        end
+    end
+    ret rec[Invoice](subtotalCents=subtotal,freeSkus=free)
+end

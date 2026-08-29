@@ -1,0 +1,15 @@
+# A rule reading one record and returning another. This is the shape most host rules have.
+budget[steps=200]
+
+rec Request(role:str,region:str)
+rec Decision(allowed:bool,reason:str)
+
+fn main(request:Request)->Decision
+    if str.starts_with(request.role,"admin")
+        ret rec[Decision](allowed=true,reason="admin role")
+    end
+    if request.region == "EU"
+        ret rec[Decision](allowed=true,reason="in region")
+    end
+    ret rec[Decision](allowed=false,reason="denied")
+end

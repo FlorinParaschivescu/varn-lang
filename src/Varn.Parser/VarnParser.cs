@@ -460,7 +460,10 @@ public static class VarnParser
             {
                 var operatorToken = TakeCurrent();
                 var right = ParseBinary(level + 1);
-                left = new CallExpressionSyntax(function, [left, right], operatorToken.Span);
+                left = new CallExpressionSyntax(function, [left, right], operatorToken.Span)
+                {
+                    OperatorSpelling = operatorToken.Text
+                };
             }
 
             return left;
@@ -472,7 +475,10 @@ public static class VarnParser
             {
                 // 'not' takes one operand, so negation is safe to desugar to the call it replaces.
                 var bang = TakeCurrent();
-                return new CallExpressionSyntax("not", [ParseUnaryExpression()], bang.Span);
+                return new CallExpressionSyntax("not", [ParseUnaryExpression()], bang.Span)
+                {
+                    OperatorSpelling = bang.Text
+                };
             }
 
             if (Current.Kind != TokenKind.Minus)
@@ -593,10 +599,21 @@ public static class VarnParser
         private NoneExpressionSyntax ParseNoneExpression()
         {
             var start = Match(TokenKind.None).Span;
-            Match(TokenKind.LeftBracket);
-            var elementType = ParseType();
+            return new NoneExpressionSyntax(ParseOptionalTypeArgument(), start);
+        }
+
+        // An element or success type is written only where the context cannot supply it.
+        private VarnType? ParseOptionalTypeArgument()
+        {
+            if (Current.Kind != TokenKind.LeftBracket)
+            {
+                return null;
+            }
+
+            MoveNext();
+            var type = ParseType();
             Match(TokenKind.RightBracket);
-            return new NoneExpressionSyntax(elementType, start);
+            return type;
         }
 
         private OkExpressionSyntax ParseOkExpression()
@@ -611,9 +628,7 @@ public static class VarnParser
         private ErrExpressionSyntax ParseErrExpression()
         {
             var start = Match(TokenKind.Err).Span;
-            Match(TokenKind.LeftBracket);
-            var valueType = ParseType();
-            Match(TokenKind.RightBracket);
+            var valueType = ParseOptionalTypeArgument();
             Match(TokenKind.LeftParen);
             var error = ParseExpression();
             Match(TokenKind.RightParen);
@@ -623,9 +638,7 @@ public static class VarnParser
         private ListExpressionSyntax ParseListExpression()
         {
             var start = Match(TokenKind.List).Span;
-            Match(TokenKind.LeftBracket);
-            var elementType = ParseType();
-            Match(TokenKind.RightBracket);
+            var elementType = ParseOptionalTypeArgument();
             Match(TokenKind.LeftParen);
             var elements = new List<ExpressionSyntax>();
             if (Current.Kind != TokenKind.RightParen)

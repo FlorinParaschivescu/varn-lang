@@ -4,7 +4,7 @@ fn maybe(present:bool)->i64?
     if present
         ret some(42)
     end
-    ret none[i64]
+    ret none
 end
 
 fn main()->i64

@@ -107,7 +107,7 @@ A `rec` declaration is closed and immutable. Construction must set every declare
 
 ## Writing a rule
 
-Arithmetic and comparison are infix with the usual precedence. Everything else is a call, and the standard library is small enough to hold in context:
+A type argument is written only where the surrounding code does not already supply one, so a failure is `err(reason)` and an empty list is `list()`. Arithmetic and comparison are infix with the usual precedence. Everything else is a call, and the standard library is small enough to hold in context:
 
 ```varn
 if total >= 1000 && (order.customerTier == "gold" || str.starts_with(order.customerTier,"vip"))
@@ -124,7 +124,7 @@ fn main(order:Order)->result[Settlement]
     if ok percent:i64 rate(order.customerTier)
         ret ok(rec[Settlement](total=total,discount=percent))
     else err reason:str
-        ret err[Settlement](reason)
+        ret err(reason)
     end
 end
 ```
@@ -250,6 +250,24 @@ This is the intended path for future web access: a network module can expose nar
 
 > A loaded .NET module is trusted host code and is not sandboxed by Varn. Capability checks control whether Varn programs may call it; they cannot prevent a malicious module assembly from using .NET directly. Only load modules you trust. The MCP adapter deliberately does not load external assemblies.
 
+## Using Varn as a skill
+
+`.claude/skills/varn/` is a self-contained skill: one card that is sufficient to write correct Varn without reading `spec/`, four runnable worked examples, and the check-repair procedure. It costs about **2,000 tokens** to load, against roughly 9,200 for the specification it replaces.
+
+To use it in another repository, copy the directory:
+
+```bash
+cp -r .claude/skills/varn /path/to/project/.claude/skills/
+```
+
+The card drives the CLI by default. To check and run without leaving the session, register the MCP host once and the card's `varn_check`, `varn_inspect`, and `varn_run` become available:
+
+```bash
+sh ./scripts/register-codex-mcp.sh
+```
+
+Every program in the card and every worked example is checked and run by the test suite, so a sample cannot rot into teaching syntax the language no longer accepts.
+
 ## Repository map
 
 ```text
@@ -270,6 +288,7 @@ tests/
   Varn.Tests/             dependency-free language/runtime test runner
   Varn.Adapter.Tests/     adapter policy and MCP protocol test runner
 examples/                 programs and an external module
+.claude/skills/varn/      the language card, worked examples, and the check-repair procedure
 spec/                     current language, tooling, adapter, and extension contracts
 ```
 

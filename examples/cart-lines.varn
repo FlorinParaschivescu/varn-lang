@@ -11,10 +11,10 @@ end
 
 fn main(cart:Cart)->result[Invoice]
     var subtotal:i64 0
-    var free:list[str] list[str]()
+    var free:list[str] list()
     each line:Line in cart.lines max 64
         if line.qty < 0
-            ret err[Invoice](str.concat("negative quantity for sku ",line.sku))
+            ret err(str.concat("negative quantity for sku ",line.sku))
         end
         set subtotal subtotal + lineTotal(line)
         if line.unitCents == 0
@@ -25,7 +25,7 @@ fn main(cart:Cart)->result[Invoice]
         if ok discount:i64 num.div(subtotal,10)
             ret ok(rec[Invoice](subtotalCents=subtotal,discountCents=discount,freeSkus=free))
         else err reason:str
-            ret err[Invoice](reason)
+            ret err(reason)
         end
     end
     ret ok(rec[Invoice](subtotalCents=subtotal,discountCents=0,freeSkus=free))
